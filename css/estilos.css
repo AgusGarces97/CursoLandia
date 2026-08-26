@@ -1,0 +1,81 @@
+body{
+    background-color: gray;
+}
+
+/* Color de fondo y borde inferior sutil del nav */
+.custom-navbar {
+    background-color: #ffffff;
+    border-bottom: 1px solid #f0f0f5;
+}
+
+/* Marca / Logo */
+.custom-brand {
+    color: #2b2b36;
+    font-size: 1.35rem;
+}
+
+/* Enlaces del menú principal */
+.custom-link {
+    color: #4a4a5a !important;
+    font-weight: 500;
+    font-size: 0.95rem;
+    position: relative;
+    padding-bottom: 6px !important;
+}
+
+/* Indicador de pestaña activa (Línea morada inferior en "Inicio") */
+.custom-link.active {
+    color: #6c5ce7 !important;
+    font-weight: 600;
+}
+
+.custom-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background-color: #6c5ce7;
+    border-radius: 2px;
+}
+
+/* Buscador con ícono adentro */
+.search-box {
+    width: 220px;
+}
+
+.custom-search-input {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    padding-right: 2.2rem;
+}
+
+.custom-search-input:focus {
+    background-color: #fff;
+    box-shadow: 0 0 0 0.25rem rgba(108, 92, 231, 0.15);
+    border-color: #a29bfe;
+}
+
+.search-icon {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    font-size: 0.85rem;
+}
+
+/* Botón Violeta de Registrarse */
+.btn-purple {
+    background-color: #6c5ce7;
+    border: none;
+    transition: background-color 0.2s ease;
+}
+
+.btn-purple:hover {
+    background-color: #5b4bc4;
+    color: #fff;
+}
