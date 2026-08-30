@@ -15,8 +15,8 @@
             
             <!-- Logo con Icono -->
             <a class="navbar-brand d-flex align-items-center gap-2 fw-bold custom-brand" href="#">
-                <i class="bi bi-mortarboard-fill text-primary fs-3"></i>
-                <span>Cursolandia<span class="text-primary">.com</span></span>
+                <i class="bi bi-mortarboard-fill color-logo fs-3"></i>
+                <span>Cursolandia<span class="color-logo">.com</span></span>
             </a>
 
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,10 +38,7 @@
                         <a class="nav-link custom-link" href="#">Crear curso</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link custom-link" href="#">Categorías</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link custom-link" href="#">¿Cómo funciona?</a>
+                        <a class="nav-link custom-link" href="#">Cursos Recomendados</a>
                     </li>
                 </ul> 
 
@@ -55,7 +52,7 @@
                     </div>
 
                     <!-- Enlace Iniciar Sesión (Sin fondo) -->
-                    <a class="nav-link fw-semibold text-dark px-2" href="#">Iniciar sesión</a>
+                    <a class="btn rounded-3 fw-semibold text-dark px-4 btn-iniciar-sesion" href="#">Iniciar sesión</a>
 
                     <!-- Botón Registrarse (Morado/Violeta) -->
                     <a class="btn btn-purple px-4 rounded-3 text-white fw-semibold" href="#" role="button">Registrarse</a>
@@ -64,9 +61,247 @@
             </div>
         </div>
     </nav>
-</header>
+    </header>
 
     <main>
+
+        <section class="hero-section py-5">
+            <div class="container-fluid px-lg-5">
+            <div class="row align-items-center g-4">
+                
+                <!-- Columna Izquierda: Textos y Acciones -->
+                <div class="col-lg-6">
+                    <h1 class="display-4 fw-bold text-dark mb-2">
+                        Aprendé. Enseñá.<br>
+                        <span class="text-purple">Compartí conocimiento.</span>
+                    </h1>
+                    
+                    <p class="text-secondary fs-5 my-4 hero-description">
+                        <strong>Cursolandia.com</strong> es la plataforma donde los usuarios <strong>crean</strong> y toman cursos sobre lo que les apasiona. Cursos gratuitos o pagos, públicos o privados, vos elegís.
+                    </p>
+
+                    <!-- Botones de Acción -->
+                    <div class="d-flex flex-wrap gap-3 mb-4">
+                        <a href="#" class="btn btn-purple px-4 py-2 rounded-3 text-white fw-semibold">Explorar cursos</a>
+                        <a href="#" class="btn btn-outline-purple px-4 py-2 rounded-3 fw-semibold d-flex align-items-center gap-2">
+                            <i class="bi bi-plus-circle"></i> Crear un curso
+                        </a>
+                    </div>
+
+                    <!-- Buscador Hero -->
+                    <div class="search-hero position-relative mb-3">
+                        <i class="bi bi-search search-icon-hero text-muted"></i>
+                        <input type="text" class="form-control form-control-lg ps-5 custom-input-hero" placeholder="Buscar cursos por título o etiqueta...">
+                    </div>
+
+                    <!-- Etiquetas Populares -->
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="small fw-semibold text-muted me-1">Etiquetas populares:</span>
+                        <a href="#" class="badge-tag">Programación</a>
+                        <a href="#" class="badge-tag">Diseño</a>
+                        <a href="#" class="badge-tag">Marketing</a>
+                        <a href="#" class="badge-tag">Idiomas</a>
+                        <a href="#" class="badge-tag">Negocios</a>
+                        <a href="#" class="badge-tag">Fotografía</a>
+                    </div>
+                </div>
+
+                <!-- Columna Derecha: Imagen e Ilustraciones -->
+                <div class="col-lg-6 position-relative text-center">
+                    <div class="hero-image-wrapper mx-auto">
+                        <!-- Fondo suave ovalado/curvo (Shapes) -->
+                        <div class="hero-bg-blob"></div>
+
+                        <!-- Imagen Principal -->
+                        <img src="img/estudiante.png" alt="Estudiante en laptop" class="img-fluid position-relative hero-main-img">
+
+                        <!-- Tarjetas Flotantes Deco -->
+                        <div class="floating-card card-students shadow-sm">
+                            <i class="bi bi-people-fill text-purple fs-4"></i>
+                            <div>
+                                <div class="fw-bold fs-6">+1200</div>
+                                <small class="text-muted">Estudiantes</small>
+                            </div>
+                        </div>
+
+                        <div class="floating-card card-featured shadow-sm">
+                            <i class="bi bi-stars text-warning fs-3"></i>
+                            <span class="small fw-bold">Cursos<br>Destacados</span>
+                        </div>
+
+                        <div class="floating-card card-inspire shadow-sm">
+                            <i class="bi bi-trophy-fill text-warning fs-3 mb-1"></i>
+                            <span class="small fw-bold text-dark">Crea. Enseñá.<br>Inspirá.</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Banner Inferior de Características -->
+            <div class="features-banner bg-white rounded-4 shadow-sm p-4 mt-5">
+                <div class="row g-4 text-start">
+                    <div class="col-md-3 feature-item">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-people text-purple display-6"></i>
+                            <div>
+                                <h6 class="fw-bold mb-1">Crea tus cursos</h6>
+                                <p class="small text-muted mb-0">Compartí tu conocimiento con el mundo de forma fácil y rápida.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 feature-item border-start-md">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-book text-purple display-6"></i>
+                            <div>
+                                <h6 class="fw-bold mb-1">Tomá cursos</h6>
+                                <p class="small text-muted mb-0">Aprendé de otros usuarios sobre los temas que más te interesan.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 feature-item border-start-md">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-bell text-purple display-6"></i>
+                            <div>
+                                <h6 class="fw-bold mb-1">Participá y preguntá</h6>
+                                <p class="small text-muted mb-0">Interactuá en foros, hacé preguntas y recibí respuestas.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 feature-item border-start-md">
+                        <div class="d-flex align-items-center gap-3">
+                            <i class="bi bi-award text-purple display-6"></i>
+                            <div>
+                                <h6 class="fw-bold mb-1">Plan Pro</h6>
+                                <p class="small text-muted mb-0">Más beneficios, más herramientas, más posibilidades.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            </div>
+        </section>
+
+        <section class="recommended-courses py-5">
+    <div class="container-fluid px-lg-5">
+        
+        <!-- Encabezado de la Sección -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold text-dark position-relative section-title m-0">
+                Cursos recomendados para vos
+            </h3>
+            <a href="#" class="text-purple fw-semibold text-decoration-none view-all-link">
+                Ver todos <i class="bi bi-chevron-right ms-1"></i>
+            </a>
+        </div>
+
+        <!-- Grid de Tarjetas (5 Columnas) -->
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-xl-5 g-4">
+            
+            <!-- Curso 1 -->
+            <div class="col">
+                <div class="card h-100 course-card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <div class="position-relative">
+                        <img src="img/python.jpg" class="card-img-top course-img" alt="Introducción a Python">
+                        <span class="badge badge-gratis position-absolute top-0 start-0 m-3 px-3 py-2 rounded-3">Gratis</span>
+                    </div>
+                    <div class="card-body d-flex flex-column justify-content-between p-3">
+                        <div>
+                            <h5 class="card-title fw-bold text-dark fs-6 mb-1">Introducción a Python</h5>
+                            <p class="card-text text-muted small mb-3">por Juan Pérez</p>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted"><i class="bi bi-people me-1"></i> 1.234 alumnos</span>
+                            <span class="small fw-bold text-dark"><i class="bi bi-star-fill text-warning me-1"></i> 4.8</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Curso 2 -->
+            <div class="col">
+                <div class="card h-100 course-card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <div class="position-relative">
+                        <img src="img/uiux.jpg" class="card-img-top course-img" alt="Diseño UI/UX">
+                        <span class="badge badge-pro position-absolute top-0 start-0 m-3 px-3 py-2 rounded-3">Pro</span>
+                    </div>
+                    <div class="card-body d-flex flex-column justify-content-between p-3">
+                        <div>
+                            <h5 class="card-title fw-bold text-dark fs-6 mb-1">Diseño UI/UX desde cero</h5>
+                            <p class="card-text text-muted small mb-3">por María Gómez</p>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted"><i class="bi bi-people me-1"></i> 892 alumnos</span>
+                            <span class="small fw-bold text-dark"><i class="bi bi-star-fill text-warning me-1"></i> 4.7</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Curso 3 -->
+            <div class="col">
+                <div class="card h-100 course-card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <div class="position-relative">
+                        <img src="img/fotografia.jpg" class="card-img-top course-img" alt="Fotografía Digital">
+                        <span class="badge badge-gratis position-absolute top-0 start-0 m-3 px-3 py-2 rounded-3">Gratis</span>
+                    </div>
+                    <div class="card-body d-flex flex-column justify-content-between p-3">
+                        <div>
+                            <h5 class="card-title fw-bold text-dark fs-6 mb-1">Fotografía Digital Básica</h5>
+                            <p class="card-text text-muted small mb-3">por Pedro Sánchez</p>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted"><i class="bi bi-people me-1"></i> 645 alumnos</span>
+                            <span class="small fw-bold text-dark"><i class="bi bi-star-fill text-warning me-1"></i> 4.6</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Curso 4 -->
+            <div class="col">
+                <div class="card h-100 course-card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <div class="position-relative">
+                        <img src="img/marketing.jpg" class="card-img-top course-img" alt="Marketing Digital">
+                        <span class="badge badge-pro position-absolute top-0 start-0 m-3 px-3 py-2 rounded-3">Pro</span>
+                    </div>
+                    <div class="card-body d-flex flex-column justify-content-between p-3">
+                        <div>
+                            <h5 class="card-title fw-bold text-dark fs-6 mb-1">Marketing Digital 360°</h5>
+                            <p class="card-text text-muted small mb-3">por Ana Torres</p>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted"><i class="bi bi-people me-1"></i> 1.102 alumnos</span>
+                            <span class="small fw-bold text-dark"><i class="bi bi-star-fill text-warning me-1"></i> 4.9</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Curso 5 -->
+            <div class="col">
+                <div class="card h-100 course-card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <div class="position-relative">
+                        <img src="img/mindfulness.jpg" class="card-img-top course-img" alt="Mindfulness">
+                        <span class="badge badge-gratis position-absolute top-0 start-0 m-3 px-3 py-2 rounded-3">Gratis</span>
+                    </div>
+                    <div class="card-body d-flex flex-column justify-content-between p-3">
+                        <div>
+                            <h5 class="card-title fw-bold text-dark fs-6 mb-1">Mindfulness y bienestar</h5>
+                            <p class="card-text text-muted small mb-3">por Laura Díaz</p>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <span class="small text-muted"><i class="bi bi-people me-1"></i> 533 alumnos</span>
+                            <span class="small fw-bold text-dark"><i class="bi bi-star-fill text-warning me-1"></i> 4.5</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+        </section>
 
     </main>
 

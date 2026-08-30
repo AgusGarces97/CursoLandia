@@ -1,17 +1,28 @@
-body{
-    background-color: gray;
+:root{
+    --PRIMARY:  #6c5ce7;
+    --SECONDARY: #5b4bc4;
+    --TERCIARY: #a29bfe;
+    --BORDENAV: #f0f0f5;
+    --WHITE: #ffffff;
 }
+
+/* INFORMACIÓN DE ESTILO DE EL NAV
 
 /* Color de fondo y borde inferior sutil del nav */
 .custom-navbar {
-    background-color: #ffffff;
-    border-bottom: 1px solid #f0f0f5;
+    background-color: var(--WHITE);
+    border-bottom: 1px solid var(--BORDENAV);
 }
+
 
 /* Marca / Logo */
 .custom-brand {
     color: #2b2b36;
     font-size: 1.35rem;
+}
+
+.color-logo{
+    color: var(--PRIMARY);
 }
 
 /* Enlaces del menú principal */
@@ -25,7 +36,7 @@ body{
 
 /* Indicador de pestaña activa (Línea morada inferior en "Inicio") */
 .custom-link.active {
-    color: #6c5ce7 !important;
+    color: var(--PRIMARY) !important;
     font-weight: 600;
 }
 
@@ -36,7 +47,7 @@ body{
     left: 0;
     width: 100%;
     height: 2px;
-    background-color: #6c5ce7;
+    background-color: var(--PRIMARY);
     border-radius: 2px;
 }
 
@@ -54,9 +65,9 @@ body{
 }
 
 .custom-search-input:focus {
-    background-color: #fff;
+    background-color: var(--WHITE);
     box-shadow: 0 0 0 0.25rem rgba(108, 92, 231, 0.15);
-    border-color: #a29bfe;
+    border-color: var(--TERCIARY);
 }
 
 .search-icon {
@@ -70,12 +81,217 @@ body{
 
 /* Botón Violeta de Registrarse */
 .btn-purple {
-    background-color: #6c5ce7;
+    background-color: var(--PRIMARY);
     border: none;
     transition: background-color 0.2s ease;
 }
 
 .btn-purple:hover {
-    background-color: #5b4bc4;
+    background-color: var(--SECONDARY);
+    color: var(--WHITE);
+}
+
+.btn-iniciar-sesion{
+    background-color: var(--BORDENAV);
+}
+
+#banner-principal{
+    background-image: url('../imgs/fondo-banner.jpg');
+    background-size: cover;       /* Escala la imagen para cubrir todo el contenedor */
+    background-position: center;  /* Centra la imagen dentro del contenedor */
+    background-repeat: no-repeat; /* Evita que la imagen se repita */
+    
+    width: 100%;                  /* Opcional: define el ancho */
+    min-height: 40vh;            /* Recomendado: le da alto al contenedor para que se vea la imagen */
+}
+
+/** INFO DE ESTILO MAIN **/
+
+/* Color principal violeta */
+.text-purple {
+    color: var(--PRIMARY) !important;
+}
+
+.btn-purple {
+    background-color: var(--PRIMARY);
+    border: none;
+}
+
+.btn-purple:hover {
+    background-color: var(--SECONDARY);
     color: #fff;
+}
+
+.btn-outline-purple {
+    color: var(--PRIMARY);
+    border: 1px solid var(--PRIMARY);
+    background-color: transparent;
+}
+
+.btn-outline-purple:hover {
+    background-color: #f0edff;
+    color: var(--SECONDARY);
+}
+
+/* Fondo sutil degradado de la sección */
+.hero-section {
+    background: linear-gradient(180deg, #f8f7ff 0%, #ffffff 100%);
+}
+
+.hero-description {
+    max-width: 540px;
+    line-height: 1.6;
+    color: #555;
+}
+
+/* Buscador Hero */
+.custom-input-hero {
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    font-size: 0.95rem;
+}
+
+.search-icon-hero {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.1rem;
+    z-index: 5;
+}
+
+/* Etiquetas Populares (Badges) */
+.badge-tag {
+    background-color: #f0edff;
+    color: var(--PRIMARY);
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.badge-tag:hover {
+    background-color: var(--PRIMARY);
+    color: #fff;
+}
+
+/* Imagen Derecha y Contenedor Relativo */
+.hero-image-wrapper {
+    position: relative;
+    max-width: 520px;
+}
+
+.hero-main-img {
+    z-index: 2;
+}
+
+.hero-bg-blob {
+    position: absolute;
+    top: 10%;
+    right: 5%;
+    width: 85%;
+    height: 85%;
+    background-color: #e8e3ff;
+    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+    z-index: 1;
+}
+
+/* Tarjetas flotantes sobre la imagen */
+.floating-card {
+    position: absolute;
+    background: #ffffff;
+    padding: 12px 18px;
+    border-radius: 16px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.card-students {
+    top: 35%;
+    left: -20px;
+}
+
+.card-featured {
+    top: 12%;
+    right: 0px;
+    flex-direction: column;
+    text-align: center;
+}
+
+.card-inspire {
+    bottom: 20%;
+    right: -10px;
+    flex-direction: column;
+    text-align: center;
+}
+
+/* Banner de características inferior */
+.features-banner {
+    border: 1px solid #f0edff;
+}
+
+@media (min-width: 768px) {
+    .border-start-md {
+        border-left: 1px solid #eef0f4;
+    }
+}
+
+/* INFORMACIÓN DE ESTILO CURSOS RECOMENDADOS
+
+/* Línea violeta decorativa bajo el título de la sección */
+.section-title::after {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 3px;
+    background-color: #6c5ce7;
+    border-radius: 2px;
+    margin-top: 6px;
+}
+
+/* Enlace "Ver todos" */
+.view-all-link {
+    font-size: 0.9rem;
+    transition: transform 0.2s ease;
+}
+
+.view-all-link:hover {
+    color: #5b4bc4 !important;
+}
+
+/* Tarjeta del curso y animación hover */
+.course-card {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    cursor: pointer;
+}
+
+.course-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(108, 92, 231, 0.12) !important;
+}
+
+/* Ajuste de imágenes dentro de la tarjeta */
+.course-img {
+    height: 140px;
+    object-fit: cover;
+}
+
+/* Badges de estado */
+.badge-gratis {
+    background-color: #2ec4b6;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.badge-pro {
+    background-color: #ffb703;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 0.75rem;
 }
