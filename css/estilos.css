@@ -166,3 +166,27 @@
 .footer-divider {
     border-color: rgba(255, 255, 255, 0.2);
 }
+
+
+/* --- ESTILOS PARA FORMULARIOS --- */
+
+.custom-input {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Efecto al hacer clic (focus) en los inputs usando tus variables de color */
+.custom-input:focus {
+    background-color: var(--WHITE);
+    box-shadow: 0 0 0 0.25rem rgba(108, 92, 231, 0.15); /* Sombra violeta translúcida */
+    border-color: var(--TERCIARY);
+}
+
+/* Color personalizado para los checkboxes / switches de Bootstrap */
+.form-check-input:checked {
+    background-color: var(--PRIMARY);
+    border-color: var(--PRIMARY);
+}
