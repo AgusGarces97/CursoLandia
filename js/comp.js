@@ -1,6 +1,22 @@
 // Esperamos a que todo el HTML cargue antes de ejecutar el script
     document.addEventListener("DOMContentLoaded", () => {
         
+        // Seleccionamos todos los enlaces que tienen la clase 'custom-link' dentro de la lista de navegación
+        const navLinks = document.querySelectorAll('.navbar-nav .custom-link');
+
+        // Recorremos cada enlace para agregarle un "escuchador de clics"
+        navLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                
+                // 1. Cuando se hace clic, primero le quitamos la clase 'active' a TODOS los enlaces
+                navLinks.forEach(l => l.classList.remove('active'));
+                
+                // 2. Luego, le agregamos la clase 'active' SOLAMENTE al enlace que recibió el clic (this)
+                this.classList.add('active');
+                
+            });
+        });
+
         // Cantidad de pixeles que se moverá el carrusel en cada clic
         const scrollAmount = 300; 
 
@@ -30,3 +46,9 @@
             carruselRecomendados.scrollBy({ left: scrollAmount, behavior: "smooth" });
         });
     });
+
+
+
+document.addEventListener("click",  () => {
+
+});
