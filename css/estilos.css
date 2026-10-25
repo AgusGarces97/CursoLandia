@@ -6,14 +6,13 @@
     --WHITE: #ffffff;
 }
 
-/* INFORMACIÓN DE ESTILO DE EL NAV
+/* INFORMACIÓN DE ESTILO DE EL NAV */
 
 /* Color de fondo y borde inferior sutil del nav */
 .custom-navbar {
     background-color: var(--WHITE);
     border-bottom: 1px solid var(--BORDENAV);
 }
-
 
 /* Marca / Logo */
 .custom-brand {
@@ -53,6 +52,7 @@
 
 /* Buscador con ícono adentro */
 .search-box {
+    position: relative; /* Agregado para que el ícono absoluto se mantenga dentro */
     width: 220px;
 }
 
@@ -95,203 +95,74 @@
     background-color: var(--BORDENAV);
 }
 
-#banner-principal{
-    background-image: url('../imgs/fondo-banner.jpg');
-    background-size: cover;       /* Escala la imagen para cubrir todo el contenedor */
-    background-position: center;  /* Centra la imagen dentro del contenedor */
-    background-repeat: no-repeat; /* Evita que la imagen se repita */
-    
-    width: 100%;                  /* Opcional: define el ancho */
-    min-height: 40vh;            /* Recomendado: le da alto al contenedor para que se vea la imagen */
+/* ESTILOS PARA MAIN */
+
+/* Ocultar barra de desplazamiento en los carruseles de cursos */
+.carrusel-cursos {
+    scrollbar-width: none; /* Para Firefox */
+}
+.carrusel-cursos::-webkit-scrollbar {
+    display: none; /* Para Chrome, Safari y Edge */
 }
 
-/** INFO DE ESTILO MAIN **/
-
-/* Color principal violeta */
-.text-purple {
-    color: var(--PRIMARY) !important;
+/* Estilos temporales para los cuadros estáticos (Banner y Cursos) */
+.banner-placeholder {
+    background-color: var(--TERCIARY); /* Un violeta claro para que combine */
+    min-height: 260px;
+    border-radius: 12px;
 }
 
-.btn-purple {
-    background-color: var(--PRIMARY);
-    border: none;
+.curso-card {
+    min-width: 240px;
+    height: 140px;
+    background-color: var(--WHITE);
+    border: 1px solid var(--BORDENAV);
+    border-radius: 8px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.btn-purple:hover {
-    background-color: var(--SECONDARY);
-    color: #fff;
+.curso-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15); /* Sombra con tu color PRIMARY */
 }
 
-.btn-outline-purple {
+/* Flechas del carrusel */
+.arrow-btn {
     color: var(--PRIMARY);
-    border: 1px solid var(--PRIMARY);
-    background-color: transparent;
+    font-size: 2.5rem;
+    line-height: 1;
+    cursor: pointer;
 }
-
-.btn-outline-purple:hover {
-    background-color: #f0edff;
+.arrow-btn:hover {
     color: var(--SECONDARY);
 }
 
-/* Fondo sutil degradado de la sección */
-.hero-section {
-    background: linear-gradient(180deg, #f8f7ff 0%, #ffffff 100%);
+/* ------------------------------------------------------------------------ */
+
+/* --- ESTILOS DEL FOOTER --- */
+
+/* Contenedor principal del footer */
+.custom-footer {
+    background-color: var(--PRIMARY); /* Usa el violeta principal de la marca */
+    color: var(--WHITE);
+    margin-top: auto; /* Útil si el body es un flexbox, para que el footer siempre quede abajo */
 }
 
-.hero-description {
-    max-width: 540px;
-    line-height: 1.6;
-    color: #555;
-}
-
-/* Buscador Hero */
-.custom-input-hero {
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    font-size: 0.95rem;
-}
-
-.search-icon-hero {
-    position: absolute;
-    left: 18px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 1.1rem;
-    z-index: 5;
-}
-
-/* Etiquetas Populares (Badges) */
-.badge-tag {
-    background-color: #f0edff;
-    color: var(--PRIMARY);
-    padding: 4px 12px;
-    border-radius: 8px;
-    font-size: 0.82rem;
+/* Enlaces del footer */
+.footer-link {
+    color: var(--BORDENAV);
     text-decoration: none;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    font-size: 0.95rem;
+    transition: color 0.2s ease, padding-left 0.2s ease;
 }
 
-.badge-tag:hover {
-    background-color: var(--PRIMARY);
-    color: #fff;
+/* Efecto hover de los enlaces */
+.footer-link:hover {
+    color: var(--WHITE);
+    padding-left: 5px; /* Pequeño desplazamiento elegante al pasar el mouse */
 }
 
-/* Imagen Derecha y Contenedor Relativo */
-.hero-image-wrapper {
-    position: relative;
-    max-width: 520px;
-}
-
-.hero-main-img {
-    z-index: 2;
-}
-
-.hero-bg-blob {
-    position: absolute;
-    top: 10%;
-    right: 5%;
-    width: 85%;
-    height: 85%;
-    background-color: #e8e3ff;
-    border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
-    z-index: 1;
-}
-
-/* Tarjetas flotantes sobre la imagen */
-.floating-card {
-    position: absolute;
-    background: #ffffff;
-    padding: 12px 18px;
-    border-radius: 16px;
-    z-index: 3;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.card-students {
-    top: 35%;
-    left: -20px;
-}
-
-.card-featured {
-    top: 12%;
-    right: 0px;
-    flex-direction: column;
-    text-align: center;
-}
-
-.card-inspire {
-    bottom: 20%;
-    right: -10px;
-    flex-direction: column;
-    text-align: center;
-}
-
-/* Banner de características inferior */
-.features-banner {
-    border: 1px solid #f0edff;
-}
-
-@media (min-width: 768px) {
-    .border-start-md {
-        border-left: 1px solid #eef0f4;
-    }
-}
-
-/* INFORMACIÓN DE ESTILO CURSOS RECOMENDADOS
-
-/* Línea violeta decorativa bajo el título de la sección */
-.section-title::after {
-    content: '';
-    display: block;
-    width: 32px;
-    height: 3px;
-    background-color: #6c5ce7;
-    border-radius: 2px;
-    margin-top: 6px;
-}
-
-/* Enlace "Ver todos" */
-.view-all-link {
-    font-size: 0.9rem;
-    transition: transform 0.2s ease;
-}
-
-.view-all-link:hover {
-    color: #5b4bc4 !important;
-}
-
-/* Tarjeta del curso y animación hover */
-.course-card {
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
-    cursor: pointer;
-}
-
-.course-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(108, 92, 231, 0.12) !important;
-}
-
-/* Ajuste de imágenes dentro de la tarjeta */
-.course-img {
-    height: 140px;
-    object-fit: cover;
-}
-
-/* Badges de estado */
-.badge-gratis {
-    background-color: #2ec4b6;
-    color: #ffffff;
-    font-weight: 600;
-    font-size: 0.75rem;
-}
-
-.badge-pro {
-    background-color: #ffb703;
-    color: #ffffff;
-    font-weight: 600;
-    font-size: 0.75rem;
+/* Línea divisoria del footer */
+.footer-divider {
+    border-color: rgba(255, 255, 255, 0.2);
 }
