@@ -224,3 +224,55 @@
         height: 90px;
     }
 }
+
+/* --- ESTILOS PARA CURSOS DESTACADOS (RN09) --- */
+
+/* Destacado visual para cursos de usuarios Pro */
+.curso-pro-destacado {
+    border: 2px solid var(--PRIMARY) !important;
+    /* Se le da un poco de margen superior (mt-3) extra en HTML para que la etiqueta "Destacado" absoluta no se corte arriba */
+    margin-top: 0.8rem; 
+}
+
+/* Efecto hover acentuado para los destacados */
+.curso-pro-destacado:hover {
+    box-shadow: 0 12px 24px rgba(108, 92, 231, 0.25) !important;
+}
+
+/* Utilidad para truncar texto a 3 líneas (Ideal para descripciones de tarjetas) */
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;  
+    overflow: hidden;
+}
+
+/* --- IMÁGENES DE LAS TARJETAS DE CURSOS --- */
+.curso-img {
+    height: 160px;
+    object-fit: cover;
+    border-bottom: 1px solid var(--BORDENAV);
+}
+
+/* --- ESTILOS PARA LA PANTALLA DE NOTIFICACIONES --- */
+
+/* Fondo tenue para las notificaciones que aún no han sido leídas */
+.notif-unread {
+    background-color: rgba(108, 92, 231, 0.04);
+}
+
+/* Marca de borde lateral para identificar rápidamente lo nuevo */
+.border-start-primary {
+    border-left: 4px solid var(--PRIMARY) !important;
+}
+
+/* Contenedor del ícono para que mantenga su proporción y alineación */
+.notif-icon-box {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0; 
+}

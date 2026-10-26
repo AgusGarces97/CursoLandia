@@ -27,26 +27,26 @@
                 <!-- Menú Colapsable -->
                 <div class="collapse navbar-collapse" id="navbarNav">
                     
-                    <!-- 1. CAMBIO AQUÍ: Se cambió "align-items-lg-center" por "align-items-center" para centrar los links en móvil y achicar la línea inferior -->
+                    
                     <ul class="navbar-nav mx-auto align-items-center gap-3 my-2 my-lg-0">
                         <li class="nav-item">
                             <a class="nav-link active custom-link text-nowrap" aria-current="page" href="#">Nuevo Curso</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link custom-link text-nowrap" href="#">Mis Cursos</a>
+                            <a class="nav-link custom-link text-nowrap" href="../html/misCursos.html">Mis Cursos</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link custom-link text-nowrap" href="#">Cursos Recomendados</a>
+                            <a class="nav-link custom-link text-nowrap" href="../html/cursosRecomendados.html">Cursos Recomendados</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link custom-link text-nowrap" href="#">Solicitudes Plan Pro</a>
+                            <a class="nav-link custom-link text-nowrap" href="../html/solicitudesPro.html">Solicitudes Plan Pro</a>
                         </li>                 
                     </ul>
 
-                    <!-- 2. CAMBIO AQUÍ: Se cambió "align-items-start" por "align-items-center" para centrar todo el bloque derecho -->
+                    
                     <div class="d-flex flex-column flex-lg-row align-items-center gap-3 gap-lg-4 mt-3 mt-lg-0">
                         
-                        <!-- 3. CAMBIO AQUÍ: Se limitó el ancho al 80% (máx 280px) para que sea grande pero no cubra todo el ancho -->
+                        
                         <div class="search-box position-relative" style="width: 80%; max-width: 280px;">
                             <input class="form-control custom-search-input pe-5 w-100" type="search" placeholder="Buscar cursos..." aria-label="Search"/>
                             <i class="bi bi-search search-icon text-muted"></i>
@@ -55,12 +55,12 @@
                         <!-- Agrupación de íconos -->
                         <div class="d-flex align-items-center gap-4 mt-2 mt-lg-0">
                             <!-- Notificaciones -->
-                            <a class="text-decoration-none" href="#">
+                            <a class="text-decoration-none" href="../html/notificaciones.html">
                                 <i class="bi bi-bell-fill color-logo fs-4"></i>
                             </a>
 
                             <!-- Boton de Perfil -->
-                            <a class="text-decoration-none" href="#"> 
+                            <a class="text-decoration-none" href="../php/perfil.php"> 
                                 <i class="bi bi-person-circle color-logo fs-3"></i> 
                             </a>
                         </div>
