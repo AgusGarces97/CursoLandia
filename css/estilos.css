@@ -190,3 +190,37 @@
     background-color: var(--PRIMARY);
     border-color: var(--PRIMARY);
 }
+
+/* --- BANNER DE CABECERA DEL CURSO --- */
+.curso-header-banner {
+    /* El linear-gradient crea una capa oscura semitransparente sobre la imagen */
+    /* Reemplaza 'URL_DE_TU_IMAGEN.jpg' con la ruta real de la foto que quieras usar */
+    background: linear-gradient(rgba(30, 30, 40, 0.6), rgba(30, 30, 40, 0.85)), 
+                url('https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 250px; /* Altura mínima del banner */
+}
+
+/* --- ESTILOS PARA LA PANTALLA DE PERFIL --- */
+
+.perfil-banner {
+    /* Color sólido similar al banner de tu boceto (usa tu variable PRIMARY o un degradado) */
+    background: linear-gradient(135deg, var(--PRIMARY), var(--SECONDARY));
+    min-height: 220px;
+}
+
+.perfil-img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    /* Ajusta el tamaño de la imagen en dispositivos muy pequeños */
+}
+
+@media (max-width: 576px) {
+    .perfil-img {
+        width: 90px;
+        height: 90px;
+    }
+}

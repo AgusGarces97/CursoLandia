@@ -33,7 +33,7 @@
                             <a class="nav-link active custom-link text-nowrap" aria-current="page" href="#">Nuevo Curso</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link custom-link text-nowrap" href="curso.php">Mis Cursos</a>
+                            <a class="nav-link custom-link text-nowrap" href="#">Mis Cursos</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link custom-link text-nowrap" href="#">Cursos Recomendados</a>

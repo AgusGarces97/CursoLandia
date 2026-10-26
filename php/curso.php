@@ -72,18 +72,25 @@
 
     <main class="container my-5">
         
-        <!-- Cabecera del Curso -->
-        <div class="mb-4 pb-3 border-bottom">
-            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-                <div>
-                    <div class="d-flex gap-2 mb-2">
-                        <span class="badge bg-success">Activo</span>
-                        <span class="badge bg-secondary">Gratuito</span>
-                        <span class="badge bg-info text-dark">Público</span>
-                    </div>
-                    <h2 class="fw-bold text-dark mb-1">Desarrollo Web Full Stack con PHP</h2>
-                    <p class="text-muted mb-0">Creado por: <span class="fw-medium text-dark">ProfesorGimenez</span></p>
+        <!-- Cabecera del Curso con Imagen de Fondo -->
+        <div class="curso-header-banner mb-5 rounded-4 shadow-sm p-4 p-md-5">
+            <div class="d-flex flex-column justify-content-center h-100">
+                
+                <!-- Badges -->
+                <div class="d-flex gap-2 mb-3">
+                    <span class="badge bg-success">Activo</span>
+                    <span class="badge bg-secondary">Gratuito</span>
+                    <span class="badge bg-info text-dark">Público</span>
                 </div>
+                
+                <!-- Título -->
+                <h1 class="fw-bold text-white mb-2">Desarrollo Web Full Stack con PHP</h1>
+                
+                <!-- Creador -->
+                <p class="text-white mb-0 fs-5" style="opacity: 0.9;">
+                    Creado por: <span class="fw-bold text-white">ProfesorGimenez</span>
+                </p>
+                
             </div>
         </div>
 
