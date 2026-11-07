@@ -1,5 +1,81 @@
 <?php 
 
+
+if(session_status() == PHP_SESSION_NONE){
+    session_start();
+}
+
+require_once 'conexion.php';
+// Si alguien intenta entrar a nuevoCurso.php sin loguearse, lo mando al login
+if (!isset($_SESSION['id_usuario'])) {
+    header("Location: login.php");
+    exit();
+}
+
+if(isset($_POST['botonCrearCurso'])){
+    
+    $id_creador = $_SESSION['id_usuario'];
+    $tipo_usuario = $_SESSION['plan'];
+    $estado_Curso = 1;
+
+    $puede_crear = true;
+    
+    if(isset($_POST['estadoCurso'])){
+        $estado_Curso = 1;
+    }else{
+        $estado_Curso = 0;
+    }
+    
+    if($tipo_usuario === "gratis" && $estado_Curso === 1){
+        $sql_cantCursos = "
+        SELECT COUNT(*) as total_activos FROM cursos
+        WHERE id_creador='$id_creador' AND activo=1
+        ";
+        $resultadoCantCursos = mysqli_query($conexion, $sql_cantCursos);
+        $filaResultadoCant = mysqli_fetch_array($resultadoCantCursos);
+
+        if($filaResultadoCant['total_activos'] >= 3){
+            $puede_crear = false;
+            $mensaje = "<div class='alert alert-warning text-center fw-medium' role='alert'>
+                            <i class='bi bi-exclamation-triangle-fill me-2'></i>
+                            Límite alcanzado: Ya tienes 3 cursos activos en tu Plan Gratuito. 
+                            Puedes guardarlo como borrador desmarcando 'Publicar como Activo' o solicitar el Plan Pro.
+                        </div>";
+        }
+    }
+    
+
+    if($puede_crear){
+        extract($_POST);
+
+        if($privacidad == "0"){
+            $es_publico = 0; // Es Publico
+        }else{
+            $es_publico = 1; // Es Privado
+        }
+
+        if($costo == "1"){
+            $es_pago = 1; // Es Pago
+        }else{
+            $es_pago = 0; // Es Gratuito
+        }
+
+        $sql_insert = "
+        INSERT INTO cursos (id_creador, titulo, descripcion, es_publico, es_pago, cupo, fecha_inicio, fecha_fin, activo)
+        VALUES ($id_creador, '$titulo', '$descripcion', $es_publico, $es_pago, $cupo, '$fechaInicio', $fechaFin, $estadoCurso)
+        ";
+
+        if (mysqli_query($conexion, $sql_insert)) {
+            $mensaje = "<div class='alert alert-success text-center fw-medium' role='alert'>
+                            <i class='bi bi-check-circle-fill me-2'></i>¡Curso creado exitosamente!
+                        </div>";
+        } else {
+            $mensaje = "<div class='alert alert-danger text-center' role='alert'>Error: " . mysqli_error($conexion) . "</div>";
+        }
+    }
+
+}
+
     $titulo_pagina = 'Nuevo Curso - Cursolandia';
     $ruta = '../'; 
     require_once 'header.php'; 
@@ -95,7 +171,7 @@
                             <!-- Botones de Acción (Confirmar y Navegar_a) -->
                             <div class="d-flex justify-content-end gap-3">
                                 <a href="index.html" class="btn btn-light fw-medium px-4 text-muted border">Cancelar</a>
-                                <button type="submit" class="btn btn-purple fw-medium px-4">Confirmar Creación</button>
+                                <button type="submit" class="btn btn-purple fw-medium px-4" name="botonCrearCurso">Confirmar Creación</button>
                             </div>
                             
                         </form>

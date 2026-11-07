@@ -48,20 +48,38 @@ if(session_status() == PHP_SESSION_NONE){
                         </li>                 
                     </ul>
 
-                    <div class="d-flex flex-column flex-lg-row align-items-center gap-3 gap-lg-4 mt-3 mt-lg-0">
-                        <div class="search-box position-relative" style="width: 80%; max-width: 280px;">
-                            <input class="form-control custom-search-input pe-5 w-100" type="search" placeholder="Buscar cursos..." aria-label="Search"/>
-                            <i class="bi bi-search search-icon text-muted"></i>
-                        </div>
+                   <!-- ZONA DINÁMICA: Cambia si hay sesión o no -->
                         <div class="d-flex align-items-center gap-4 mt-2 mt-lg-0">
-                            <a class="text-decoration-none" href="<?php echo $ruta; ?>php/notificaciones.php">
-                                <i class="bi bi-bell-fill color-logo fs-4"></i>
-                            </a>
-                            <a class="text-decoration-none" href="<?php echo $ruta; ?>php/perfil.php"> 
-                                <i class="bi bi-person-circle color-logo fs-3"></i> 
-                            </a>
+                            
+                            <?php if(isset($_SESSION['id_usuario'])): ?>
+                                <!-- SI ESTÁ LOGUEADO -->
+                                <a class="text-decoration-none" href="<?php echo $ruta; ?>php/notificaciones.php">
+                                    <i class="bi bi-bell-fill color-logo fs-4"></i>
+                                </a>
+                                
+                                <!-- Dropdown de Perfil -->
+                                <div class="dropdown">
+                                    <a href="#" class="text-decoration-none d-flex align-items-center gap-2 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-person-circle color-logo fs-3"></i>
+                                        <span class="text-dark fw-medium"><?php echo $_SESSION['nombre']; ?></span>
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2">
+                                        <li><a class="dropdown-item py-2" href="<?php echo $ruta; ?>php/perfil.php"><i class="bi bi-person me-2"></i>Mi Perfil</a></li>
+                                        <?php if($_SESSION['plan'] == 'pro'): ?>
+                                            <li><span class="dropdown-item py-2 text-warning fw-bold"><i class="bi bi-star-fill me-2"></i>Cuenta PRO</span></li>
+                                        <?php endif; ?>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item py-2 text-danger fw-medium" href="<?php echo $ruta; ?>php/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión</a></li>
+                                    </ul>
+                                </div>
+
+                            <?php else: ?>
+                                <!-- SI NO ESTÁ LOGUEADO -->
+                                <a href="<?php echo $ruta; ?>php/login.php" class="btn btn-outline-primary fw-medium px-4" style="color: var(--PRIMARY); border-color: var(--PRIMARY);">Ingresar</a>
+                                <a href="<?php echo $ruta; ?>php/register.php" class="btn btn-purple fw-medium px-4">Registrarse</a>
+                            <?php endif; ?>
+
                         </div>
-                    </div>
                 </div>
             </div>
         </nav>
