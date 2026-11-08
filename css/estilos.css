@@ -113,8 +113,8 @@
 }
 
 .curso-card {
-    min-width: 240px;
-    height: 140px;
+    width: 280px; /* Ancho fijo para que el carrusel funcione bien */
+    min-height: 380px; /* Cambiamos height por min-height para que el contenido entre */
     background-color: var(--WHITE);
     border: 1px solid var(--BORDENAV);
     border-radius: 8px;
@@ -123,7 +123,15 @@
 
 .curso-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15); /* Sombra con tu color PRIMARY */
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15);
+}
+
+/* Forzamos a Bootstrap a usar tu color primario en los enlaces */
+.link-primary {
+    color: var(--PRIMARY) !important;
+}
+.link-primary:hover {
+    color: var(--SECONDARY) !important;
 }
 
 /* Flechas del carrusel */

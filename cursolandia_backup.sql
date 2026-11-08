@@ -161,3 +161,18 @@ GRANT ALL PRIVILEGES ON cursolandia_db.* TO 'usuario_admin'@'localhost';
 
 -- 3. Recargar los privilegios para que MySQL los aplique inmediatamente
 FLUSH PRIVILEGES;
+
+-- 1. INSERTAR USUARIOS DE PRUEBA
+INSERT INTO usuarios (id_usuario, nombre, apellido, email, password, dni, edad, antecedentes, rol, plan) VALUES 
+(100, 'Agustín', 'Garcés', 'agustin@ejemplo.com', '123456', '44111222', 23, 'Desarrollador Web Full Stack y profesor particular.', 'regular', 'pro'),
+(200, 'María', 'Gómez', 'maria@ejemplo.com', '123456', '45222333', 21, 'Estudiante de diseño gráfico interesada en UX/UI.', 'regular', 'gratis'),
+(300, 'Carlos', 'Admin', 'admin@cursolandia.com', 'admin123', '30444555', 35, 'Administrador general de la plataforma.', 'admin', 'pro');
+
+-- 2. INSERTAR CURSOS VINCULADOS AL USUARIO 1 (Agustín)
+INSERT INTO cursos (id_creador, titulo, descripcion, es_publico, es_pago, cupo, fecha_inicio, fecha_fin, activo) VALUES 
+(1, 'Desarrollo Web Full Stack con PHP', 'Aprende a crear aplicaciones web dinámicas desde cero utilizando HTML, CSS, PHP y MySQL. Ideal para principiantes que buscan su primer empleo IT. Incluye proyectos reales y buenas prácticas de código.', 1, 0, NULL, '2026-11-20', '2026-12-20', 1),
+(1, 'Masterclass de Seguridad Web', 'Descubre las vulnerabilidades más comunes en aplicaciones web (XSS, Inyección SQL, CSRF) y aprende a proteger tus sistemas de bases de datos como un profesional del lado del servidor.', 1, 1, 50, '2026-11-25', '2026-12-05', 1),
+(1, 'Diseño de Interfaces UX/UI', 'Domina los principios de diseño centrado en el usuario. Crea interfaces hermosas y funcionales que destaquen en tu portafolio usando las herramientas más demandadas del mercado.', 1, 1, 30, '2026-12-01', '2027-01-15', 1),
+(1, 'Lógica de Programación Básica', 'El primer paso para cualquier programador. Desarrolla tu pensamiento lógico resolviendo algoritmos y diagramas de flujo sin tocar código complejo. Sienta las bases para cualquier lenguaje.', 1, 0, 100, '2026-11-10', '2026-12-10', 1),
+(1, 'Proyecto Secreto (Borrador)', 'Este es un curso que aún estoy preparando. Como tiene activo = 0, el sistema NO debería mostrarlo en el index principal, pero sí en la pestaña de Mis Cursos.', 1, 0, NULL, '2027-01-01', '2027-02-01', 0),
+(1, 'Tutoría Exclusiva de Física', 'Clases privadas y avanzadas de física. Como tiene es_publico = 0, tampoco debería aparecer en el catálogo público del inicio.', 0, 1, 5, '2026-11-15', '2026-12-15', 1);

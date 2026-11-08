@@ -16,17 +16,17 @@ if(isset($_POST['botonCrearCurso'])){
     
     $id_creador = $_SESSION['id_usuario'];
     $tipo_usuario = $_SESSION['plan'];
-    $estado_Curso = 1;
+    $estadoCurso = 1;
 
     $puede_crear = true;
     
     if(isset($_POST['estadoCurso'])){
-        $estado_Curso = 1;
+        $estadoCurso = 1;
     }else{
-        $estado_Curso = 0;
+        $estadoCurso = 0;
     }
     
-    if($tipo_usuario === "gratis" && $estado_Curso === 1){
+    if($tipo_usuario === "gratis" && $estadoCurso === 1){
         $sql_cantCursos = "
         SELECT COUNT(*) as total_activos FROM cursos
         WHERE id_creador='$id_creador' AND activo=1
@@ -59,6 +59,8 @@ if(isset($_POST['botonCrearCurso'])){
         }else{
             $es_pago = 0; // Es Gratuito
         }
+
+        $cupo = !empty($_POST['cupo']) ? (int)$_POST['cupo'] : "NULL";
 
         $sql_insert = "
         INSERT INTO cursos (id_creador, titulo, descripcion, es_publico, es_pago, cupo, fecha_inicio, fecha_fin, activo)
