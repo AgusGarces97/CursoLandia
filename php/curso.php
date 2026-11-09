@@ -169,13 +169,13 @@
                         <?php elseif($es_creador): ?>
                             <button class="btn btn-outline-primary w-100 fw-medium">Administrar Curso</button>
                         <?php elseif($esta_inscripto): ?>
-                            <form action="procesar_inscripcion.php" method="POST">
+                            <form action="procesarInscripcion.php" method="POST">
                                 <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
                                 <input type="hidden" name="accion" value="abandonar">
                                 <button type="submit" class="btn btn-outline-danger w-100 fw-medium">Abandonar Curso</button>
                             </form>
                         <?php else: ?>
-                            <form action="procesar_inscripcion.php" method="POST">
+                            <form action="procesarInscripcion.php" method="POST">
                                 <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
                                 <input type="hidden" name="accion" value="inscribir">
                                 <?php 

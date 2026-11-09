@@ -62,7 +62,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['id_curso']) && isset($
     exit();
 
 } else {
-    // Si alguien entra directo a procesar_inscripcion.php por URL, lo expulsamos al index
+    // Si alguien entra directo a procesarInscripcion.php por URL, lo expulsamos al index
     header("Location: ../index.php");
     exit();
 }
