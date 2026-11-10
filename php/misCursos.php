@@ -85,7 +85,7 @@
                     <div class="alert alert-info border-0 shadow-sm d-flex align-items-center mb-4 rounded-3" style="background-color: rgba(108, 92, 231, 0.1); color: var(--SECONDARY);">
                         <i class="bi bi-info-circle-fill fs-5 me-3"></i>
                         <div>
-                            <strong>Plan Gratuito:</strong> Tienes <strong> '. $contador['total_Cursos'] . ' de 3</strong> cursos activos permitidos. <a href="#" class="alert-link" style="color: var(--PRIMARY);">Sube a Plan Pro</a> para crear cursos ilimitados.
+                            <strong>Plan Gratuito:</strong> Tienes <strong> '. $contador['total_Cursos'] . ' de 3</strong> cursos activos permitidos. <a href="solicitarPro.php" class="alert-link" style="color: var(--PRIMARY);">Sube a Plan Pro</a> para crear cursos ilimitados.
                         </div>
                     </div>
                     ';
@@ -95,9 +95,13 @@
                 <!-- Grilla de Cursos Dictados -->
                 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
                     <?php
+                    // Consulta con subconsulta para calcular total de alumnos por curso de forma real
                     $sqlMostrar = "
-                    SELECT * FROM cursos
-                    WHERE id_creador = '$idUsuario' ORDER BY fecha_creacion ASC
+                    SELECT c.*, 
+                           (SELECT COUNT(*) FROM inscripciones i WHERE i.id_curso = c.id_curso) as total_alumnos
+                    FROM cursos c
+                    WHERE c.id_creador = '$idUsuario' 
+                    ORDER BY c.fecha_creacion DESC
                     ";
 
                     $resultado = mysqli_query($conexion, $sqlMostrar);
@@ -105,17 +109,9 @@
                     if(mysqli_num_rows($resultado) > 0){
                         while($curso = mysqli_fetch_array($resultado)){
                             
-                            if($curso['activo'] == 1){
-                                $activo = "Activo";
-                            }else{
-                                $activo = "Inactivo";
-                            }
-                            
-                            if($curso['es_publico'] == 1){
-                                $privacidad = "Público";
-                            }else{
-                                $privacidad = "Privado";
-                            }
+                            $activo = ($curso['activo'] == 1) ? "Activo" : "Inactivo";
+                            $privacidad = ($curso['es_publico'] == 1) ? "Público" : "Privado";
+                            $cupoTexto = $curso['cupo'] ? $curso['cupo'] : 'Sin límite';
 
                             if($curso['activo'] == 1){
                                 echo '<div class="col">
@@ -126,9 +122,9 @@
                                                 <span class="badge bg-success">' . $activo .'</span>
                                                 <span class="badge bg-light text-dark border">' . $privacidad .'</span>
                                             </div>
-                                            <h5 class="fw-bold text-dark mb-1">'. $curso['titulo'] .'</h5>
-                                            <p class="text-muted small mb-3"><i class="bi bi-people-fill me-1"></i>25 / 30 Alumnos</p>
-                                            <a href="curso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">Administrar Curso</a>
+                                            <h5 class="fw-bold text-dark mb-1">'. htmlspecialchars($curso['titulo']) .'</h5>
+                                            <p class="text-muted small mb-3"><i class="bi bi-people-fill me-1"></i>'. $curso['total_alumnos'] .' / '. $cupoTexto .' Alumnos</p>
+                                            <a href="editarCurso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">Administrar Curso</a>
                                         </div>
                                     </div>
                                 </div>';
@@ -141,9 +137,9 @@
                                                 <span class="badge bg-secondary">' . $activo . '</span>
                                                 <span class="badge bg-light text-dark border"> ' . $privacidad . '</span>
                                             </div>
-                                            <h5 class="fw-bold text-dark mb-1">' . $curso['titulo'] . '</h5>
-                                            <p class="text-muted small mb-3"><i class="bi bi-people-fill me-1"></i>0 / Sin límite</p>
-                                            <a href="curso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">Editar Borrador</a>
+                                            <h5 class="fw-bold text-dark mb-1">' . htmlspecialchars($curso['titulo']) . '</h5>
+                                            <p class="text-muted small mb-3"><i class="bi bi-people-fill me-1"></i>'. $curso['total_alumnos'] .' / '. $cupoTexto .' Alumnos</p>
+                                            <a href="editarCurso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">Editar Borrador</a>
                                         </div>
                                     </div>
                                 </div>';
@@ -191,8 +187,8 @@
                                                 <span class="badge bg-secondary">Gratuito</span>
                                             <?php endif; ?>
                                         </div>
-                                        <h5 class="fw-bold text-dark mb-1"><?php echo $inscripcion['titulo']; ?></h5>
-                                        <p class="text-muted small mb-3">Docente: <span class="fw-medium"><?php echo $inscripcion['profe_nombre'] . ' ' . $inscripcion['profe_apellido']; ?></span></p>
+                                        <h5 class="fw-bold text-dark mb-1"><?php echo htmlspecialchars($inscripcion['titulo']); ?></h5>
+                                        <p class="text-muted small mb-3">Docente: <span class="fw-medium"><?php echo htmlspecialchars($inscripcion['profe_nombre'] . ' ' . $inscripcion['profe_apellido']); ?></span></p>
                                         <a href="curso.php?id=<?php echo $inscripcion['id_curso']; ?>" class="btn btn-purple w-100 fw-medium">Entrar al Curso</a>
                                     </div>
                                 </div>
