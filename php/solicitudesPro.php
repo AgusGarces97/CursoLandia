@@ -1,161 +1,175 @@
 <?php 
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
-    $titulo_pagina = 'Solicitudes - Cursolandia';
-    $ruta = '../'; 
-    require_once 'header.php'; 
+require_once 'conexion.php';
 
+if (!isset($_SESSION['id_usuario'])) {
+    header("Location: ../index.php");
+    exit();
+}
+
+$idUsuarioActual = $_SESSION['id_usuario'];
+$rolUsuario = $_SESSION['rol'];
+
+// Procesamiento de aprobación / rechazo por parte del Admin
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_solicitud'])) {
+    if ($rolUsuario === 'admin') {
+        $idSolicitud = (int)$_POST['id_solicitud'];
+        $idUsuarioSolicitante = (int)$_POST['id_usuario_solicitante'];
+        $accion = $_POST['accion_solicitud'];
+
+        if ($accion === 'aprobar') {
+            $fechaVencimiento = mysqli_real_escape_string($conexion, $_POST['fecha_vencimiento']);
+            
+            // 1. Marcar solicitud como aprobada
+            mysqli_query($conexion, "UPDATE solicitudes_pro SET estado = 'aprobada' WHERE id_solicitud = $idSolicitud");
+            
+            // 2. Activar Plan Pro y asignar fecha de vencimiento al usuario
+            mysqli_query($conexion, "UPDATE usuarios SET plan = 'pro', fecha_vencimiento = '$fechaVencimiento' WHERE id_usuario = $idUsuarioSolicitante");
+            
+        } elseif ($accion === 'rechazar') {
+            mysqli_query($conexion, "UPDATE solicitudes_pro SET estado = 'rechazada' WHERE id_solicitud = $idSolicitud");
+        }
+        
+        header("Location: solicitudesPro.php?status=actualizado");
+        exit();
+    }
+}
+
+// Consultar solicitudes según rol
+if ($rolUsuario === 'admin') {
+    $sql_solicitudes = "
+        SELECT s.*, u.nombre, u.apellido, u.email 
+        FROM solicitudes_pro s
+        INNER JOIN usuarios u ON s.id_usuario = u.id_usuario
+        ORDER BY s.fecha_solicitud DESC
+    ";
+} else {
+    $sql_solicitudes = "
+        SELECT s.*, u.nombre, u.apellido, u.email 
+        FROM solicitudes_pro s
+        INNER JOIN usuarios u ON s.id_usuario = u.id_usuario
+        WHERE s.id_usuario = $idUsuarioActual
+        ORDER BY s.fecha_solicitud DESC
+    ";
+}
+
+$resultado_solicitudes = mysqli_query($conexion, $sql_solicitudes);
+
+$titulo_pagina = 'Solicitudes Plan Pro - Cursolandia';
+$ruta = '../'; 
+require_once 'header.php'; 
 ?>
 
-    <main class="container my-5">
-        
-        <!-- Encabezado -->
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h2 class="fw-bold text-dark mb-1">Solicitudes Plan Pro</h2>
-                <p class="text-muted mb-0">Gestión de activaciones de cuentas premium.</p>
-            </div>
-            <span class="badge bg-warning text-dark fs-6 shadow-sm"><i class="bi bi-inbox-fill me-2"></i>3 Pendientes</span>
+<main class="container my-5" style="min-height: 70vh;">
+    
+    <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+        <h2 class="fw-bold text-dark mb-0">
+            <i class="bi bi-star-fill text-warning me-2"></i>Solicitudes de Plan PRO
+        </h2>
+        <?php if($rolUsuario === 'admin'): ?>
+            <span class="badge bg-danger px-3 py-2 fs-6">Panel Administrador</span>
+        <?php endif; ?>
+    </div>
+
+    <?php if(isset($_GET['status']) && $_GET['status'] == 'actualizado'): ?>
+        <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>La solicitud ha sido procesada con éxito.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+    <?php endif; ?>
 
-        <!-- Lista de Solicitudes (Tabla responsiva en una Tarjeta) -->
-        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light text-muted">
-                        <tr>
-                            <th scope="col" class="ps-4 py-3 fw-medium">Usuario (Solicitante)</th>
-                            <th scope="col" class="py-3 fw-medium">Fecha de Solicitud</th>
-                            <th scope="col" class="py-3 fw-medium">Estado</th>
-                            <th scope="col" class="pe-4 py-3 text-end fw-medium">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        
-                        <!-- Solicitud 1 -->
-                        <tr>
-                            <td class="ps-4 py-3">
-                                <div class="d-flex align-items-center gap-3">
-                                    <i class="bi bi-person-circle fs-3 text-secondary"></i>
-                                    <div>
-                                        <h6 class="mb-0 fw-bold text-dark">CarlosGomez</h6>
-                                        <small class="text-muted">carlos@ejemplo.com</small>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="py-3 text-secondary">26 Oct 2026, 10:30 hs</td>
-                            <td class="py-3">
-                                <span class="badge bg-warning text-dark">Sin Revisar</span>
-                            </td>
-                            <td class="pe-4 py-3 text-end">
-                                <!-- Botón que abre el Modal de Detalles -->
-                                <button class="btn btn-sm btn-outline-primary fw-medium" data-bs-toggle="modal" data-bs-target="#detalleSolicitudModal">
-                                    Ver Detalle
-                                </button>
-                            </td>
-                        </tr>
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            <?php if (mysqli_num_rows($resultado_solicitudes) > 0): ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Usuario</th>
+                                <th>Mensaje</th>
+                                <th>Comprobante</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                                <?php if($rolUsuario === 'admin'): ?>
+                                    <th class="text-end pe-4">Acción y Vencimiento</th>
+                                <?php endif; ?>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php while ($solicitud = mysqli_fetch_assoc($resultado_solicitudes)): ?>
+                                <tr>
+                                    <td class="ps-4 fw-medium text-dark">
+                                        <?php echo $solicitud['nombre'] . ' ' . $solicitud['apellido']; ?>
+                                        <div class="small text-muted"><?php echo $solicitud['email']; ?></div>
+                                    </td>
+                                    
+                                    <!-- Mensaje del usuario -->
+                                    <td class="text-secondary small" style="max-width: 220px;">
+                                        <?php echo !empty($solicitud['mensaje']) ? htmlspecialchars($solicitud['mensaje']) : '<em>Sin mensaje</em>'; ?>
+                                    </td>
 
-                        <!-- Solicitud 2 -->
-                        <tr>
-                            <td class="ps-4 py-3">
-                                <div class="d-flex align-items-center gap-3">
-                                    <i class="bi bi-person-circle fs-3 text-secondary"></i>
-                                    <div>
-                                        <h6 class="mb-0 fw-bold text-dark">MariaLopez99</h6>
-                                        <small class="text-muted">maria.l@ejemplo.com</small>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="py-3 text-secondary">25 Oct 2026, 18:15 hs</td>
-                            <td class="py-3">
-                                <span class="badge bg-warning text-dark">Sin Revisar</span>
-                            </td>
-                            <td class="pe-4 py-3 text-end">
-                                <button class="btn btn-sm btn-outline-primary fw-medium" data-bs-toggle="modal" data-bs-target="#detalleSolicitudModal">
-                                    Ver Detalle
-                                </button>
-                            </td>
-                        </tr>
+                                    <!-- Adjunto -->
+                                    <td>
+                                        <?php if(!empty($solicitud['comprobante'])): ?>
+                                            <a href="../uploads/comprobantes/<?php echo $solicitud['comprobante']; ?>" target="_blank" class="btn btn-sm btn-outline-primary fw-medium">
+                                                <i class="bi bi-file-earmark-text me-1"></i>Ver Adjunto
+                                            </a>
+                                        <?php else: ?>
+                                            <span class="text-muted small">Sin archivo</span>
+                                        <?php endif; ?>
+                                    </td>
 
-                    </tbody>
-                </table>
-            </div>
-        </div>
+                                    <td class="text-muted small">
+                                        <?php echo date("d/m/Y H:i", strtotime($solicitud['fecha_solicitud'])); ?>
+                                    </td>
 
-        <!-- ======================================================= -->
-        <!-- MODAL "VER DETALLE" (Se abre al presionar el botón)     -->
-        <!-- ======================================================= -->
-        <div class="modal fade" id="detalleSolicitudModal" tabindex="-1" aria-labelledby="detalleModalLabel" aria-hidden="true">
-            <div class="modal-dialog modal-lg modal-dialog-centered">
-                <div class="modal-content border-0 shadow rounded-4">
-                    
-                    <div class="modal-header border-bottom px-4 py-3">
-                        <h5 class="modal-title fw-bold text-dark" id="detalleModalLabel">Detalle de Solicitud: <span class="text-primary">CarlosGomez</span></h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    
-                    <div class="modal-body px-4 py-4">
-                        <div class="row g-4">
-                            
-                            <!-- Lado Izquierdo: Mensaje y Comprobante -->
-                            <div class="col-md-7 border-end">
-                                
-                                <!-- Mensaje de la solicitud -->
-                                <div class="mb-4">
-                                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-chat-left-text me-2"></i>Mensaje del Usuario</h6>
-                                    <div class="bg-light p-3 rounded border text-secondary" style="font-size: 0.95rem;">
-                                        "Hola administrador, adjunto el comprobante de transferencia bancaria por la suscripción anual al Plan Pro. Quedo a la espera de la activación, muchas gracias."
-                                    </div>
-                                </div>
+                                    <td>
+                                        <?php if($solicitud['estado'] == 'pendiente'): ?>
+                                            <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Pendiente</span>
+                                        <?php elseif($solicitud['estado'] == 'aprobada'): ?>
+                                            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Aprobada</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-secondary"><i class="bi bi-x-circle me-1"></i>Rechazada</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    
+                                    <?php if($rolUsuario === 'admin'): ?>
+                                        <td class="text-end pe-4">
+                                            <?php if($solicitud['estado'] == 'pendiente'): ?>
+                                                
+                                                <!-- Formulario para Aprobar especificando Fecha de Vencimiento -->
+                                                <form action="solicitudesPro.php" method="POST" class="d-inline-flex align-items-center gap-2 justify-content-end">
+                                                    <input type="hidden" name="id_solicitud" value="<?php echo $solicitud['id_solicitud']; ?>">
+                                                    <input type="hidden" name="id_usuario_solicitante" value="<?php echo $solicitud['id_usuario']; ?>">
+                                                    
+                                                    <!-- Fecha de vencimiento por defecto a 1 año desde hoy -->
+                                                    <input type="date" name="fecha_vencimiento" class="form-control form-control-sm" value="<?php echo date('Y-m-d', strtotime('+1 year')); ?>" required style="width: 140px;">
+                                                    
+                                                    <button type="submit" name="accion_solicitud" value="aprobar" class="btn btn-sm btn-success fw-medium">Aprobar</button>
+                                                    <button type="submit" name="accion_solicitud" value="rechazar" class="btn btn-sm btn-outline-danger fw-medium">Rechazar</button>
+                                                </form>
 
-                                <!-- Archivo Adjunto (Comprobante) -->
-                                <div>
-                                    <h6 class="fw-bold text-dark mb-2"><i class="bi bi-paperclip me-2"></i>Comprobante Adjunto</h6>
-                                    <a href="#" class="list-group-item list-group-item-action border rounded p-3 d-flex justify-content-between align-items-center">
-                                        <div class="d-flex align-items-center gap-3">
-                                            <i class="bi bi-file-earmark-pdf-fill text-danger fs-3"></i>
-                                            <div>
-                                                <p class="mb-0 fw-medium text-dark">transferencia_carlos.pdf</p>
-                                                <small class="text-muted">1.2 MB</small>
-                                            </div>
-                                        </div>
-                                        <span class="btn btn-sm btn-light border">Descargar</span>
-                                    </a>
-                                </div>
-                            </div>
-
-                            <!-- Lado Derecho: Acción del Administrador (Vencimiento) -->
-                            <div class="col-md-5">
-                                <div class="alert alert-info border-0 bg-opacity-10 mb-4" role="alert" style="background-color: rgba(108, 92, 231, 0.1); color: var(--PRIMARY);">
-                                    <i class="bi bi-info-circle-fill me-2"></i> Revisa el comprobante antes de activar el plan.
-                                </div>
-                                
-                                <form action="activarPlan.php" method="POST">
-                                    <!-- Fecha de Vencimiento requerida para activar -->
-                                    <div class="mb-3">
-                                        <label for="fechaVencimiento" class="form-label fw-bold text-dark">Establecer Vencimiento <span class="text-danger">*</span></label>
-                                        <input type="date" class="form-control custom-input" id="fechaVencimiento" name="fechaVencimiento" required>
-                                        <div class="form-text small">Fecha en la que expirará el Plan Pro del usuario.</div>
-                                    </div>
-                                </form>
-                            </div>
-
-                        </div>
-                    </div>
-
-                    <!-- Botones de Acción: Rechazar o Activar -->
-                    <div class="modal-footer border-top bg-light px-4 py-3 justify-content-between">
-                        <button type="button" class="btn btn-outline-danger fw-medium px-4" data-bs-dismiss="modal">
-                            <i class="bi bi-x-circle me-1"></i> Rechazar
-                        </button>
-                        <button type="submit" class="btn btn-purple fw-medium px-4">
-                            <i class="bi bi-check-circle me-1"></i> Activar Pro
-                        </button>
-                    </div>
-                    
+                                            <?php else: ?>
+                                                <span class="text-muted small">Procesada</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    <?php endif; ?>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
                 </div>
-            </div>
+            <?php else: ?>
+                <div class="text-center p-5 text-muted">
+                    <i class="bi bi-inbox display-4 mb-3 d-block opacity-50"></i>
+                    No hay solicitudes registradas por el momento.
+                </div>
+            <?php endif; ?>
         </div>
-
-    </main>
+    </div>
+</main>
 
 <?php require_once 'footer.php'; ?>

@@ -39,9 +39,21 @@
                     <p class="mb-0 fs-5 opacity-75">Rol: <?php echo ucfirst($usuario['rol']); ?></p>
                     <div class="d-flex align-items-center gap-2 mt-2">
                         <?php if($usuario['plan'] == 'pro'): ?>
-                            <span class="badge bg-warning text-dark px-3 py-2 border-0">Plan Pro</span>
+                            <span class="badge bg-warning text-dark px-3 py-2 border-0">
+                                <i class="bi bi-star-fill me-1"></i>Plan Pro
+                            </span>
+                            <?php if(!empty($usuario['fecha_vencimiento'])): ?>
+                                <small class="fw-medium text-white ms-2">
+                                    Vto: <?php echo date("d/m/Y", strtotime($usuario['fecha_vencimiento'])); ?>
+                                </small>
+                            <?php endif; ?>
                         <?php else: ?>
                             <span class="badge bg-white text-primary px-3 py-2 border-0">Plan Gratuito</span>
+                            
+                            <!-- Enlace al formulario de solicitud con comprobante -->
+                            <a href="solicitarPro.php" class="btn btn-warning btn-sm fw-bold border-0 shadow-sm px-3 py-2 ms-2">
+                                <i class="bi bi-rocket-takeoff-fill me-1"></i>Solicitar Plan Pro
+                            </a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -51,20 +63,30 @@
         <!-- SECCIÓN DE DATOS Y FORMULARIO -->
         <section class="bg-white rounded-4 shadow-sm p-4 p-lg-5 border">
             
+            <!-- BLOQUE DE ALERTAS (Edición de Perfil y Solicitudes Pro) -->
+            <?php if(isset($_GET['editado']) && $_GET['editado'] == 'exito'): ?>
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i><strong>¡Perfil actualizado!</strong> Tus datos se guardaron correctamente.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif(isset($_GET['editado']) && $_GET['editado'] == 'error'): ?>
+                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Ocurrió un error.</strong> No se pudieron guardar los cambios.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif(isset($_GET['solicitud']) && $_GET['solicitud'] == 'enviada'): ?>
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i><strong>¡Solicitud enviada!</strong> Tu pedido para pasar al Plan Pro fue registrado y está en revisión por el administrador.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif(isset($_GET['solicitud']) && $_GET['solicitud'] == 'pendiente'): ?>
+                <div class="alert alert-warning alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-clock-history me-2"></i><strong>Solicitud en curso.</strong> Ya tienes una solicitud para Plan Pro pendiente de aprobación.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php endif; ?>
+
             <form action="editarPerfil.php" method="POST">
-                
-                <!-- BLOQUE DE ALERTAS -->
-                <?php if(isset($_GET['editado']) && $_GET['editado'] == 'exito'): ?>
-                    <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm" role="alert">
-                        <i class="bi bi-check-circle-fill me-2"></i><strong>¡Perfil actualizado!</strong> Tus datos se guardaron correctamente.
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                <?php elseif(isset($_GET['editado']) && $_GET['editado'] == 'error'): ?>
-                    <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Ocurrió un error.</strong> No se pudieron guardar los cambios.
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                <?php endif; ?>
                 
                 <!-- Cabecera de la sección (Título y Botones) -->
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3 border-bottom pb-3">
