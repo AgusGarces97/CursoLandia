@@ -23,23 +23,22 @@
     ";
     $resultado_curso = mysqli_query($conexion, $sql_curso);
 
-    // Si el curso no existe, lo mandamos al inicio
     if (mysqli_num_rows($resultado_curso) == 0) {
         header("Location: ../index.php");
         exit();
     }
     $curso = mysqli_fetch_assoc($resultado_curso);
 
-    // 2. Variables de control de acceso
+    // 2. Control de acceso
     $es_creador = ($id_usuario_actual == $curso['id_creador']);
     $esta_inscripto = false;
 
-    // 3. Consultamos cuántos alumnos hay inscriptos para el cupo
+    // 3. Consultamos el cupo
     $sql_cupo = "SELECT COUNT(id_inscripcion) as total_alumnos FROM inscripciones WHERE id_curso = $id_curso";
     $res_cupo = mysqli_query($conexion, $sql_cupo);
     $total_alumnos = mysqli_fetch_assoc($res_cupo)['total_alumnos'];
 
-    // 4. Verificamos si el usuario actual ya está inscripto (si no es el creador)
+    // 4. Verificamos inscripción del usuario
     if ($id_usuario_actual && !$es_creador) {
         $sql_check_inscripcion = "SELECT * FROM inscripciones WHERE id_curso = $id_curso AND id_alumno = $id_usuario_actual";
         $res_check = mysqli_query($conexion, $sql_check_inscripcion);
@@ -49,7 +48,7 @@
     }
 
     // =========================================================
-    // LÓGICA DE SUBIDA Y ELIMINACIÓN DE MATERIALES (SÓLO DOCENTE)
+    // LÓGICA DE GESTIÓN DE MATERIALES
     // =========================================================
 
     // A. Subir Material
@@ -57,8 +56,7 @@
         if (isset($_FILES['archivo_material']) && $_FILES['archivo_material']['error'] === UPLOAD_ERR_OK) {
             $tamano = $_FILES['archivo_material']['size'];
             
-            // Límite de 5 MB
-            if ($tamano <= 5242880) {
+            if ($tamano <= 5242880) { // 5 MB
                 $nombre_original = mysqli_real_escape_string($conexion, $_FILES['archivo_material']['name']);
                 $extension = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
                 
@@ -102,12 +100,98 @@
         exit();
     }
 
-    // 5. Consultar los materiales adjuntos reales de la tabla
+    // =========================================================
+    // LÓGICA DEL FORO DE DUDAS (PREGUNTAS Y RESPUESAS)
+    // =========================================================
+
+    // C. Publicar Nueva Pregunta
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_pregunta' && ($esta_inscripto || $es_creador)) {
+        $titulo_p = mysqli_real_escape_string($conexion, $_POST['titulo_pregunta']);
+        $cuerpo_p = mysqli_real_escape_string($conexion, $_POST['cuerpo_pregunta']);
+        
+        if (!empty($titulo_p) && !empty($cuerpo_p)) {
+            $sql_ins_p = "INSERT INTO foro_preguntas (id_curso, id_autor, titulo, cuerpo, estado) VALUES ($id_curso, $id_usuario_actual, '$titulo_p', '$cuerpo_p', 'abierta')";
+            mysqli_query($conexion, $sql_ins_p);
+            header("Location: curso.php?id=$id_curso&foro=pregunta_ok#foro");
+            exit();
+        }
+    }
+
+    // D. Responder a una Pregunta
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_respuesta' && ($esta_inscripto || $es_creador)) {
+        $id_pregunta = (int)$_POST['id_pregunta'];
+        $cuerpo_r = mysqli_real_escape_string($conexion, $_POST['cuerpo_respuesta']);
+        
+        if (!empty($cuerpo_r) && $id_pregunta > 0) {
+            $sql_ins_r = "INSERT INTO foro_respuestas (id_pregunta, id_autor, cuerpo, es_aceptada) VALUES ($id_pregunta, $id_usuario_actual, '$cuerpo_r', 0)";
+            mysqli_query($conexion, $sql_ins_r);
+            header("Location: curso.php?id=$id_curso&foro=respuesta_ok#foro");
+            exit();
+        }
+    }
+
+    // E. Destacar / Marcar Respuesta Aceptada (Docente o Creador de la Pregunta)
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'marcar_aceptada') {
+        $id_respuesta = (int)$_POST['id_respuesta'];
+        $id_pregunta = (int)$_POST['id_pregunta'];
+        
+        $sql_chk_p = "SELECT id_autor FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
+        $res_chk_p = mysqli_query($conexion, $sql_chk_p);
+        if ($row_p = mysqli_fetch_assoc($res_chk_p)) {
+            if ($es_creador || $row_p['id_autor'] == $id_usuario_actual) {
+                // Desmarcamos las demás de esta pregunta y marcamos la seleccionada
+                mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 0 WHERE id_pregunta = $id_pregunta");
+                mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 1 WHERE id_respuesta = $id_respuesta");
+                header("Location: curso.php?id=$id_curso&foro=destacada_ok#foro");
+                exit();
+            }
+        }
+    }
+
+    // F. Eliminar Pregunta
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_pregunta') {
+        $id_pregunta = (int)$_POST['id_pregunta'];
+        $sql_chk_p = "SELECT id_autor FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
+        $res_chk_p = mysqli_query($conexion, $sql_chk_p);
+        if ($row_p = mysqli_fetch_assoc($res_chk_p)) {
+            if ($es_creador || $row_p['id_autor'] == $id_usuario_actual) {
+                mysqli_query($conexion, "DELETE FROM foro_respuestas WHERE id_pregunta = $id_pregunta");
+                mysqli_query($conexion, "DELETE FROM foro_preguntas WHERE id_pregunta = $id_pregunta");
+                header("Location: curso.php?id=$id_curso&foro=eliminada_ok#foro");
+                exit();
+            }
+        }
+    }
+
+    // G. Eliminar Respuesta
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_respuesta') {
+        $id_respuesta = (int)$_POST['id_respuesta'];
+        $sql_chk_r = "SELECT id_autor FROM foro_respuestas WHERE id_respuesta = $id_respuesta";
+        $res_chk_r = mysqli_query($conexion, $sql_chk_r);
+        if ($row_r = mysqli_fetch_assoc($res_chk_r)) {
+            if ($es_creador || $row_r['id_autor'] == $id_usuario_actual) {
+                mysqli_query($conexion, "DELETE FROM foro_respuestas WHERE id_respuesta = $id_respuesta");
+                header("Location: curso.php?id=$id_curso&foro=respuesta_del_ok#foro");
+                exit();
+            }
+        }
+    }
+
+    // 5. Consultas para cargar listas reales (Materiales y Foro)
     $sql_materiales = "SELECT * FROM materiales WHERE id_curso = $id_curso ORDER BY fecha_subida DESC";
     $resultado_materiales = mysqli_query($conexion, $sql_materiales);
     $total_materiales = mysqli_num_rows($resultado_materiales);
 
-    // Función auxiliar para formatear los bytes
+    $sql_preguntas = "
+        SELECT fp.*, u.nombre, u.apellido 
+        FROM foro_preguntas fp
+        INNER JOIN usuarios u ON fp.id_autor = u.id_usuario
+        WHERE fp.id_curso = $id_curso
+        ORDER BY fp.fecha_creacion DESC
+    ";
+    $resultado_preguntas = mysqli_query($conexion, $sql_preguntas);
+    $total_preguntas = mysqli_num_rows($resultado_preguntas);
+
     function formatearBytes($bytes) {
         if ($bytes >= 1048576) {
             return number_format($bytes / 1048576, 1) . ' MB';
@@ -125,7 +209,7 @@
 
     <main class="container my-5">
         
-        <!-- Alertas de estado de subida/eliminación -->
+        <!-- Alertas de Materiales -->
         <?php if(isset($_GET['mat'])): ?>
             <?php if($_GET['mat'] == 'exito'): ?>
                 <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
@@ -145,11 +229,9 @@
             <?php endif; ?>
         <?php endif; ?>
 
-        <!-- Cabecera del Curso con Imagen de Fondo -->
+        <!-- Banner del Curso -->
         <div class="curso-header-banner mb-5 rounded-4 shadow-sm p-4 p-md-5">
             <div class="d-flex flex-column justify-content-center h-100">
-                
-                <!-- Badges Dinámicos -->
                 <div class="d-flex gap-2 mb-3">
                     <?php if($curso['activo'] == 1): ?>
                         <span class="badge bg-success">Activo</span>
@@ -170,14 +252,10 @@
                     <?php endif; ?>
                 </div>
                 
-                <!-- Título -->
                 <h1 class="fw-bold text-white mb-2"><?php echo htmlspecialchars($curso['titulo']); ?></h1>
-                
-                <!-- Creador -->
                 <p class="text-white mb-0 fs-5" style="opacity: 0.9;">
                     Creado por: <span class="fw-bold text-white"><?php echo htmlspecialchars($curso['nombre'] . ' ' . $curso['apellido']); ?></span>
                 </p>
-                
             </div>
         </div>
 
@@ -198,43 +276,147 @@
                 </section>
 
                 <!-- Sección Foro de Preguntas -->
-                <section>
+                <section id="foro">
                     <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="fw-bold mb-0">Foro de Dudas</h4>
+                        <h4 class="fw-bold mb-0">Foro de Dudas (<?php echo $total_preguntas; ?>)</h4>
                         <?php if($esta_inscripto || $es_creador): ?>
-                            <button class="btn fw-medium text-white shadow-sm" style="background-color: var(--PRIMARY);">
+                            <button class="btn fw-medium text-white shadow-sm" style="background-color: var(--PRIMARY);" data-bs-toggle="modal" data-bs-target="#modalNuevaPregunta">
                                 <i class="bi bi-chat-left-text me-2"></i>Iniciar Pregunta
                             </button>
                         <?php endif; ?>
                     </div>
 
-                    <!-- Hilo de Pregunta de ejemplo -->
-                    <div class="card border-0 shadow-sm mb-4">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between mb-2">
-                                <h6 class="fw-bold mb-0">Ejemplo de pregunta del foro</h6>
-                                <small class="text-muted">Hace 2 horas</small>
-                            </div>
-                            <p class="text-secondary mb-3">Las preguntas reales se cargarán aquí cuando programemos la tabla del foro.</p>
-                            
-                            <?php if($esta_inscripto || $es_creador): ?>
-                                <div class="d-flex gap-3">
-                                    <button class="btn btn-sm btn-outline-secondary border-0"><i class="bi bi-reply-fill me-1"></i>Responder</button>
+                    <?php if($total_preguntas > 0): ?>
+                        
+                        <?php while($pregunta = mysqli_fetch_assoc($resultado_preguntas)): ?>
+                            <?php 
+                                $id_preg = $pregunta['id_pregunta'];
+                                // Traemos las respuestas de esta pregunta especificamente
+                                $sql_respuestas = "
+                                    SELECT fr.*, u.nombre, u.apellido 
+                                    FROM foro_respuestas fr
+                                    INNER JOIN usuarios u ON fr.id_autor = u.id_usuario
+                                    WHERE fr.id_pregunta = $id_preg
+                                    ORDER BY fr.es_aceptada DESC, fr.fecha_creacion ASC
+                                ";
+                                $res_respuestas = mysqli_query($conexion, $sql_respuestas);
+                            ?>
+
+                            <!-- Tarjeta de Pregunta -->
+                            <div class="card border-0 shadow-sm mb-4 rounded-4">
+                                <div class="card-body p-4">
+                                    
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <h5 class="fw-bold text-dark mb-1"><?php echo htmlspecialchars($pregunta['titulo']); ?></h5>
+                                            <small class="text-muted">
+                                                Por <span class="fw-medium text-dark"><?php echo htmlspecialchars($pregunta['nombre'] . ' ' . $pregunta['apellido']); ?></span> 
+                                                • <?php echo date("d/m/Y H:i", strtotime($pregunta['fecha_creacion'])); ?>
+                                            </small>
+                                        </div>
+
+                                        <?php if($es_creador || $pregunta['id_autor'] == $id_usuario_actual): ?>
+                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" onsubmit="return confirm('¿Eliminar esta pregunta y todas sus respuestas?');">
+                                                <input type="hidden" name="accion_foro" value="eliminar_pregunta">
+                                                <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0">
+                                                    <i class="bi bi-trash-fill"></i>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <p class="text-secondary mb-3" style="white-space: pre-wrap;"><?php echo htmlspecialchars($pregunta['cuerpo']); ?></p>
+
+                                    <!-- Botón de Responder -->
+                                    <?php if($esta_inscripto || $es_creador): ?>
+                                        <div class="mb-3">
+                                            <button class="btn btn-sm btn-outline-secondary border-0 px-0" type="button" data-bs-toggle="collapse" data-bs-target="#responderCollapse<?php echo $id_preg; ?>">
+                                                <i class="bi bi-reply-fill me-1"></i>Responder
+                                            </button>
+                                        </div>
+
+                                        <!-- Formulario Plegable de Respuesta -->
+                                        <div class="collapse mb-3" id="responderCollapse<?php echo $id_preg; ?>">
+                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="bg-light p-3 rounded-3 border">
+                                                <input type="hidden" name="accion_foro" value="crear_respuesta">
+                                                <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
+                                                <textarea name="cuerpo_respuesta" class="form-control custom-input mb-2" rows="2" placeholder="Escribe tu respuesta..." required></textarea>
+                                                <button type="submit" class="btn btn-purple btn-sm fw-medium">Publicar Respuesta</button>
+                                            </form>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <!-- Respuestas Anidadas -->
+                                    <?php if(mysqli_num_rows($res_respuestas) > 0): ?>
+                                        <div class="mt-3 pt-3 border-top">
+                                            <?php while($resp = mysqli_fetch_assoc($res_respuestas)): ?>
+                                                
+                                                <div class="p-3 mb-2 rounded-3 <?php echo ($resp['es_aceptada'] == 1) ? 'bg-light' : 'bg-body-tertiary'; ?>" style="<?php echo ($resp['es_aceptada'] == 1) ? 'border-left: 4px solid var(--PRIMARY);' : ''; ?>">
+                                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <div>
+                                                            <span class="fw-bold text-dark me-2"><?php echo htmlspecialchars($resp['nombre'] . ' ' . $resp['apellido']); ?></span>
+                                                            <?php if($resp['es_aceptada'] == 1): ?>
+                                                                <span class="badge text-white" style="background-color: var(--PRIMARY);"><i class="bi bi-star-fill me-1"></i>Respuesta Aceptada</span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <small class="text-muted"><?php echo date("d/m/Y H:i", strtotime($resp['fecha_creacion'])); ?></small>
+                                                    </div>
+
+                                                    <p class="text-secondary mb-2" style="white-space: pre-wrap;"><?php echo htmlspecialchars($resp['cuerpo']); ?></p>
+
+                                                    <div class="d-flex gap-2">
+                                                        <!-- Botón para Destacar / Marcar como Aceptada (Creador o Autor de Pregunta) -->
+                                                        <?php if(($es_creador || $pregunta['id_autor'] == $id_usuario_actual) && $resp['es_aceptada'] == 0): ?>
+                                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline">
+                                                                <input type="hidden" name="accion_foro" value="marcar_aceptada">
+                                                                <input type="hidden" name="id_respuesta" value="<?php echo $resp['id_respuesta']; ?>">
+                                                                <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-outline-success border-0 px-0">
+                                                                    <i class="bi bi-check-circle-fill me-1"></i>Destacar Respuesta
+                                                                </button>
+                                                            </form>
+                                                        <?php endif; ?>
+
+                                                        <!-- Eliminar Respuesta -->
+                                                        <?php if($es_creador || $resp['id_autor'] == $id_usuario_actual): ?>
+                                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline ms-auto" onsubmit="return confirm('¿Eliminar respuesta?');">
+                                                                <input type="hidden" name="accion_foro" value="eliminar_respuesta">
+                                                                <input type="hidden" name="id_respuesta" value="<?php echo $resp['id_respuesta']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0">
+                                                                    <i class="bi bi-trash-fill"></i>
+                                                                </button>
+                                                            </form>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+
+                                            <?php endwhile; ?>
+                                        </div>
+                                    <?php endif; ?>
+
                                 </div>
-                            <?php endif; ?>
+                            </div>
+                        <?php endwhile; ?>
+
+                    <?php else: ?>
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-body p-4 text-center text-muted">
+                                <i class="bi bi-chat-dots display-4 mb-2 d-block opacity-50"></i>
+                                Aún no hay preguntas formuladas en este curso. ¡Haz la primera!
+                            </div>
                         </div>
-                    </div>
+                    <?php endif; ?>
 
                 </section>
             </div>
 
-            <!-- COLUMNA DERECHA: Panel de Información y Materiales -->
+            <!-- COLUMNA DERECHA: Estado y Materiales -->
             <div class="col-lg-4">
                 
-                <!-- Tarjeta de Estado / Inscripción -->
+                <!-- Tarjeta de Inscripción -->
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-body p-4 text-center">
-                        
                         <?php if($es_creador): ?>
                             <h5 class="fw-bold text-primary mb-3"><i class="bi bi-person-video3 me-2"></i>Eres el docente</h5>
                         <?php elseif($esta_inscripto): ?>
@@ -246,15 +428,10 @@
                         <ul class="list-unstyled text-start text-secondary mb-4">
                             <li class="mb-2"><i class="bi bi-calendar-event me-2"></i><strong>Inicio:</strong> <?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?></li>
                             <li class="mb-2"><i class="bi bi-calendar-x me-2"></i><strong>Fin:</strong> <?php echo date("d/m/Y", strtotime($curso['fecha_fin'])); ?></li>
-                            <li>
-                                <i class="bi bi-people me-2"></i><strong>Cupo:</strong> 
-                                <?php echo $total_alumnos; ?> / <?php echo $curso['cupo'] ? $curso['cupo'] : 'Sin límite'; ?> alumnos
-                            </li>
+                            <li><i class="bi bi-people me-2"></i><strong>Cupo:</strong> <?php echo $total_alumnos; ?> / <?php echo $curso['cupo'] ? $curso['cupo'] : 'Sin límite'; ?> alumnos</li>
                         </ul>
                         
-                        <!-- Lógica de Botones Dinámicos -->
                         <?php if(!$id_usuario_actual): ?>
-                            <!-- Si no está logueado, lo mandamos al login -->
                             <a href="login.php" class="btn btn-purple w-100 fw-medium">Inicia sesión para inscribirte</a>
                         <?php elseif($es_creador): ?>
                             <a href="editarCurso.php?id=<?php echo $id_curso; ?>" class="btn btn-outline-primary w-100 fw-medium">Editar Datos del Curso</a>
@@ -268,20 +445,16 @@
                             <form action="procesarInscripcion.php" method="POST">
                                 <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
                                 <input type="hidden" name="accion" value="inscribir">
-                                <?php 
-                                    // Verificamos si hay cupo disponible para habilitar el botón
-                                    $hay_cupo = ($curso['cupo'] === null || $total_alumnos < $curso['cupo']);
-                                ?>
+                                <?php $hay_cupo = ($curso['cupo'] === null || $total_alumnos < $curso['cupo']); ?>
                                 <button type="submit" class="btn btn-purple w-100 fw-medium" <?php echo !$hay_cupo ? 'disabled' : ''; ?>>
                                     <?php echo $hay_cupo ? 'Inscribirse al Curso' : 'Cupo Lleno'; ?>
                                 </button>
                             </form>
                         <?php endif; ?>
-
                     </div>
                 </div>
 
-                <!-- Tarjeta de Materiales Adjuntos -->
+                <!-- Tarjeta de Materiales -->
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
                         <h6 class="fw-bold mb-0">Material Didáctico</h6>
@@ -299,12 +472,10 @@
                                         elseif(in_array($ext, ['zip', 'rar', '7z'])) $icono = 'bi-file-earmark-zip-fill text-warning';
                                         elseif(in_array($ext, ['jpg', 'png', 'jpeg'])) $icono = 'bi-file-earmark-image-fill text-success';
                                     ?>
-                                    
                                     <div class="list-group-item d-flex justify-content-between align-items-center p-3">
                                         <div class="d-flex align-items-center gap-3 text-truncate">
                                             <i class="bi <?php echo $icono; ?> fs-4"></i>
                                             <div class="text-truncate">
-                                                <!-- Solo inscriptos o el creador pueden descargar -->
                                                 <?php if($esta_inscripto || $es_creador): ?>
                                                     <a href="../<?php echo $material['ruta_archivo']; ?>" download class="mb-0 fw-medium text-dark text-decoration-none d-block text-truncate" style="font-size: 0.9rem;">
                                                         <?php echo htmlspecialchars($material['nombre_archivo']); ?>
@@ -325,7 +496,6 @@
                                                 </a>
                                             <?php endif; ?>
 
-                                            <!-- Botón de eliminar exclusivo para el creador -->
                                             <?php if($es_creador): ?>
                                                 <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" onsubmit="return confirm('¿Eliminar este material?');">
                                                     <input type="hidden" name="accion_material" value="eliminar">
@@ -347,7 +517,6 @@
                     </div>
                     
                     <?php if($es_creador): ?>
-                    <!-- Botón para abrir el Modal de Subida -->
                     <div class="card-footer bg-white border-top p-3 text-center">
                         <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-medium" data-bs-toggle="modal" data-bs-target="#modalSubirMaterial" style="color: var(--PRIMARY); border-color: var(--PRIMARY);">
                             <i class="bi bi-cloud-arrow-up me-2"></i>Subir Material
@@ -360,6 +529,40 @@
             </div>
         </div>
     </main>
+
+    <!-- MODAL PARA NUEVA PREGUNTA EN EL FORO -->
+    <?php if($esta_inscripto || $es_creador): ?>
+    <div class="modal fade" id="modalNuevaPregunta" tabindex="-1" aria-labelledby="modalNuevaPreguntaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-dark" id="modalNuevaPreguntaLabel">
+                        <i class="bi bi-chat-left-text color-logo me-2"></i>Nueva Pregunta
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST">
+                    <input type="hidden" name="accion_foro" value="crear_pregunta">
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label for="titulo_pregunta" class="form-label fw-medium text-dark">Título o Asunto</label>
+                            <input type="text" class="form-control custom-input" id="titulo_pregunta" name="titulo_pregunta" placeholder="Ej: Error al conectar la base de datos" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="cuerpo_pregunta" class="form-label fw-medium text-dark">Detalle de tu consulta</label>
+                            <textarea class="form-control custom-input" id="cuerpo_pregunta" name="cuerpo_pregunta" rows="4" placeholder="Explica tu duda lo más detalladamente posible..." required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top p-3">
+                        <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-purple fw-bold px-4">Publicar Pregunta</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- MODAL PARA SUBIR MATERIAL -->
     <?php if($es_creador): ?>
