@@ -113,8 +113,8 @@
 }
 
 .curso-card {
-    min-width: 240px;
-    height: 140px;
+    width: 280px; /* Ancho fijo para que el carrusel funcione bien */
+    min-height: 380px; /* Cambiamos height por min-height para que el contenido entre */
     background-color: var(--WHITE);
     border: 1px solid var(--BORDENAV);
     border-radius: 8px;
@@ -123,7 +123,15 @@
 
 .curso-card:hover {
     transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15); /* Sombra con tu color PRIMARY */
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.15);
+}
+
+/* Forzamos a Bootstrap a usar tu color primario en los enlaces */
+.link-primary {
+    color: var(--PRIMARY) !important;
+}
+.link-primary:hover {
+    color: var(--SECONDARY) !important;
 }
 
 /* Flechas del carrusel */
@@ -189,4 +197,90 @@
 .form-check-input:checked {
     background-color: var(--PRIMARY);
     border-color: var(--PRIMARY);
+}
+
+/* --- BANNER DE CABECERA DEL CURSO --- */
+.curso-header-banner {
+    /* El linear-gradient crea una capa oscura semitransparente sobre la imagen */
+    /* Reemplaza 'URL_DE_TU_IMAGEN.jpg' con la ruta real de la foto que quieras usar */
+    background: linear-gradient(rgba(30, 30, 40, 0.6), rgba(30, 30, 40, 0.85)), 
+                url('https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 250px; /* Altura mínima del banner */
+}
+
+/* --- ESTILOS PARA LA PANTALLA DE PERFIL --- */
+
+.perfil-banner {
+    /* Color sólido similar al banner de tu boceto (usa tu variable PRIMARY o un degradado) */
+    background: linear-gradient(135deg, var(--PRIMARY), var(--SECONDARY));
+    min-height: 220px;
+}
+
+.perfil-img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    /* Ajusta el tamaño de la imagen en dispositivos muy pequeños */
+}
+
+@media (max-width: 576px) {
+    .perfil-img {
+        width: 90px;
+        height: 90px;
+    }
+}
+
+/* --- ESTILOS PARA CURSOS DESTACADOS (RN09) --- */
+
+/* Destacado visual para cursos de usuarios Pro */
+.curso-pro-destacado {
+    border: 2px solid var(--PRIMARY) !important;
+    /* Se le da un poco de margen superior (mt-3) extra en HTML para que la etiqueta "Destacado" absoluta no se corte arriba */
+    margin-top: 0.8rem; 
+}
+
+/* Efecto hover acentuado para los destacados */
+.curso-pro-destacado:hover {
+    box-shadow: 0 12px 24px rgba(108, 92, 231, 0.25) !important;
+}
+
+/* Utilidad para truncar texto a 3 líneas (Ideal para descripciones de tarjetas) */
+.line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;  
+    overflow: hidden;
+}
+
+/* --- IMÁGENES DE LAS TARJETAS DE CURSOS --- */
+.curso-img {
+    height: 160px;
+    object-fit: cover;
+    border-bottom: 1px solid var(--BORDENAV);
+}
+
+/* --- ESTILOS PARA LA PANTALLA DE NOTIFICACIONES --- */
+
+/* Fondo tenue para las notificaciones que aún no han sido leídas */
+.notif-unread {
+    background-color: rgba(108, 92, 231, 0.04);
+}
+
+/* Marca de borde lateral para identificar rápidamente lo nuevo */
+.border-start-primary {
+    border-left: 4px solid var(--PRIMARY) !important;
+}
+
+/* Contenedor del ícono para que mantenga su proporción y alineación */
+.notif-icon-box {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0; 
 }
