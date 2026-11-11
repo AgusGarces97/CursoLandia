@@ -16,15 +16,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['botonEditarPerfil'])) 
     
     $idUsuario = $_SESSION['id_usuario'];
     
-    // 3. Capturamos y limpiamos los datos para evitar inyección SQL
-    $nombre = mysqli_real_escape_string($conexion, $_POST['nombre']);
-    $apellido = mysqli_real_escape_string($conexion, $_POST['apellido']);
+    // 3. Capturamos y limpiamos los datos de datos personales
+    $nombre = mysqli_real_escape_string($conexion, trim($_POST['nombre']));
+    $apellido = mysqli_real_escape_string($conexion, trim($_POST['apellido']));
     $edad = (int)$_POST['edad'];
-    $antecedentes = mysqli_real_escape_string($conexion, $_POST['antecedentes']);
+    $antecedentes = mysqli_real_escape_string($conexion, trim($_POST['antecedentes']));
 
-    // NOTA: DNI y Email no se actualizan porque son de solo lectura (RN02)
-
-    // 4. Ejecutamos el UPDATE en la base de datos
+    // 4. Ejecutamos el UPDATE de datos personales del usuario
     $sql_update = "
         UPDATE usuarios 
         SET nombre = '$nombre', 
@@ -36,22 +34,48 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['botonEditarPerfil'])) 
 
     if (mysqli_query($conexion, $sql_update)) {
         
-        // 5. ¡Clave! Actualizamos la sesión para que el menú cambie instantáneamente
+        // Actualizamos las variables de sesión
         $_SESSION['nombre'] = $nombre;
         $_SESSION['apellido'] = $apellido;
+
+        // 5. PROCESAMIENTO DINÁMICO DE INTERESES / ETIQUETAS
+        // A. Limpiamos las relaciones anteriores del usuario en usuario_intereses
+        mysqli_query($conexion, "DELETE FROM usuario_intereses WHERE id_usuario = $idUsuario");
+
+        // B. Si se enviaron etiquetas seleccionadas, procesamos cada una
+        if (isset($_POST['etiquetas']) && is_array($_POST['etiquetas'])) {
+            foreach ($_POST['etiquetas'] as $nombreEtiqueta) {
+                $nombreLimpio = mysqli_real_escape_string($conexion, trim(str_replace('#', '', $nombreEtiqueta)));
+                
+                if (!empty($nombreLimpio)) {
+                    // Verificamos si la etiqueta ya existe en el catálogo general 'etiquetas'
+                    $sql_check_tag = "SELECT id_etiqueta FROM etiquetas WHERE LOWER(nombre) = LOWER('$nombreLimpio')";
+                    $res_check_tag = mysqli_query($conexion, $sql_check_tag);
+
+                    if (mysqli_num_rows($res_check_tag) > 0) {
+                        $row_tag = mysqli_fetch_assoc($res_check_tag);
+                        $id_etiqueta = $row_tag['id_etiqueta'];
+                    } else {
+                        // Si no existe, la creamos dinámicamente en el catálogo
+                        mysqli_query($conexion, "INSERT INTO etiquetas (nombre) VALUES ('$nombreLimpio')");
+                        $id_etiqueta = mysqli_insert_id($conexion);
+                    }
+
+                    // Insertamos la relación usuario <-> etiqueta
+                    mysqli_query($conexion, "INSERT IGNORE INTO usuario_intereses (id_usuario, id_etiqueta) VALUES ($idUsuario, $id_etiqueta)");
+                }
+            }
+        }
         
-        // Redirigimos de vuelta con una variable de éxito en la URL
         header("Location: perfil.php?editado=exito");
         exit();
         
     } else {
-        // Redirigimos con error si falla la BD
         header("Location: perfil.php?editado=error");
         exit();
     }
 
 } else {
-    // Si entran por URL directa, los pateamos al perfil
     header("Location: perfil.php");
     exit();
 }

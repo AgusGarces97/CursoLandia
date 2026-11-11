@@ -3,7 +3,6 @@
         session_start();
     }
     
-    // Validamos que venga un ID por la URL
     if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
         header("Location: ../index.php");
         exit();
@@ -14,7 +13,6 @@
     $id_curso = (int)$_GET['id'];
     $id_usuario_actual = isset($_SESSION['id_usuario']) ? $_SESSION['id_usuario'] : null;
 
-    // 1. Traemos los datos del curso y de su creador
     $sql_curso = "
         SELECT c.*, u.nombre, u.apellido 
         FROM cursos c
@@ -29,16 +27,13 @@
     }
     $curso = mysqli_fetch_assoc($resultado_curso);
 
-    // 2. Control de acceso
     $es_creador = ($id_usuario_actual == $curso['id_creador']);
     $esta_inscripto = false;
 
-    // 3. Consultamos el cupo
     $sql_cupo = "SELECT COUNT(id_inscripcion) as total_alumnos FROM inscripciones WHERE id_curso = $id_curso";
     $res_cupo = mysqli_query($conexion, $sql_cupo);
     $total_alumnos = mysqli_fetch_assoc($res_cupo)['total_alumnos'];
 
-    // 4. Verificamos inscripción del usuario
     if ($id_usuario_actual && !$es_creador) {
         $sql_check_inscripcion = "SELECT * FROM inscripciones WHERE id_curso = $id_curso AND id_alumno = $id_usuario_actual";
         $res_check = mysqli_query($conexion, $sql_check_inscripcion);
@@ -47,16 +42,11 @@
         }
     }
 
-    // =========================================================
-    // LÓGICA DE GESTIÓN DE MATERIALES
-    // =========================================================
-
-    // A. Subir Material
+    // Materiales
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_material']) && $_POST['accion_material'] === 'subir' && $es_creador) {
         if (isset($_FILES['archivo_material']) && $_FILES['archivo_material']['error'] === UPLOAD_ERR_OK) {
             $tamano = $_FILES['archivo_material']['size'];
-            
-            if ($tamano <= 5242880) { // 5 MB
+            if ($tamano <= 5242880) {
                 $nombre_original = mysqli_real_escape_string($conexion, $_FILES['archivo_material']['name']);
                 $extension = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
                 
@@ -83,7 +73,6 @@
         }
     }
 
-    // B. Eliminar Material
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_material']) && $_POST['accion_material'] === 'eliminar' && $es_creador) {
         $id_material = (int)$_POST['id_material'];
         $sql_mat_del = "SELECT ruta_archivo FROM materiales WHERE id_material = $id_material AND id_curso = $id_curso";
@@ -100,11 +89,7 @@
         exit();
     }
 
-    // =========================================================
-    // LÓGICA DEL FORO DE DUDAS (PREGUNTAS Y RESPUESAS)
-    // =========================================================
-
-    // C. Publicar Nueva Pregunta
+    // Foro
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_pregunta' && ($esta_inscripto || $es_creador)) {
         $titulo_p = mysqli_real_escape_string($conexion, $_POST['titulo_pregunta']);
         $cuerpo_p = mysqli_real_escape_string($conexion, $_POST['cuerpo_pregunta']);
@@ -117,7 +102,6 @@
         }
     }
 
-    // D. Responder a una Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_respuesta' && ($esta_inscripto || $es_creador)) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $cuerpo_r = mysqli_real_escape_string($conexion, $_POST['cuerpo_respuesta']);
@@ -130,7 +114,6 @@
         }
     }
 
-    // E. Destacar / Marcar Respuesta Aceptada (Docente o Creador de la Pregunta)
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'marcar_aceptada') {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $id_pregunta = (int)$_POST['id_pregunta'];
@@ -139,7 +122,6 @@
         $res_chk_p = mysqli_query($conexion, $sql_chk_p);
         if ($row_p = mysqli_fetch_assoc($res_chk_p)) {
             if ($es_creador || $row_p['id_autor'] == $id_usuario_actual) {
-                // Desmarcamos las demás de esta pregunta y marcamos la seleccionada
                 mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 0 WHERE id_pregunta = $id_pregunta");
                 mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 1 WHERE id_respuesta = $id_respuesta");
                 header("Location: curso.php?id=$id_curso&foro=destacada_ok#foro");
@@ -148,7 +130,6 @@
         }
     }
 
-    // F. Eliminar Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_pregunta') {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $sql_chk_p = "SELECT id_autor FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
@@ -163,7 +144,6 @@
         }
     }
 
-    // G. Eliminar Respuesta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_respuesta') {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $sql_chk_r = "SELECT id_autor FROM foro_respuestas WHERE id_respuesta = $id_respuesta";
@@ -177,7 +157,7 @@
         }
     }
 
-    // 5. Consultas para cargar listas reales (Materiales y Foro)
+    // Consultas
     $sql_materiales = "SELECT * FROM materiales WHERE id_curso = $id_curso ORDER BY fecha_subida DESC";
     $resultado_materiales = mysqli_query($conexion, $sql_materiales);
     $total_materiales = mysqli_num_rows($resultado_materiales);
@@ -191,6 +171,16 @@
     ";
     $resultado_preguntas = mysqli_query($conexion, $sql_preguntas);
     $total_preguntas = mysqli_num_rows($resultado_preguntas);
+
+    // Consulta de Etiquetas Reales del Curso
+    $sql_tags_curso = "
+        SELECT e.nombre 
+        FROM curso_etiquetas ce 
+        INNER JOIN etiquetas e ON ce.id_etiqueta = e.id_etiqueta 
+        WHERE ce.id_curso = $id_curso 
+        ORDER BY e.nombre ASC
+    ";
+    $res_tags_curso = mysqli_query($conexion, $sql_tags_curso);
 
     function formatearBytes($bytes) {
         if ($bytes >= 1048576) {
@@ -209,7 +199,6 @@
 
     <main class="container my-5">
         
-        <!-- Alertas de Materiales -->
         <?php if(isset($_GET['mat'])): ?>
             <?php if($_GET['mat'] == 'exito'): ?>
                 <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
@@ -261,21 +250,24 @@
 
         <div class="row g-5">
             
-            <!-- COLUMNA IZQUIERDA: Descripción y Foro -->
             <div class="col-lg-8">
                 
-                <!-- Sección Descripción -->
                 <section class="mb-5">
                     <h4 class="fw-bold mb-3">Acerca de este curso</h4>
                     <p class="text-secondary" style="line-height: 1.6; white-space: pre-wrap;"><?php echo htmlspecialchars($curso['descripcion']); ?></p>
                     
-                    <div class="d-flex gap-2 mt-3">
-                        <span class="badge bg-light text-secondary border">#Programación</span>
-                        <span class="badge bg-light text-secondary border">#Cursolandia</span>
+                    <!-- ETIQUETAS DINÁMICAS DEL CURSO -->
+                    <div class="d-flex gap-2 mt-3 flex-wrap">
+                        <?php if(mysqli_num_rows($res_tags_curso) > 0): ?>
+                            <?php while($tag = mysqli_fetch_assoc($res_tags_curso)): ?>
+                                <span class="badge bg-light text-secondary border">#<?php echo htmlspecialchars($tag['nombre']); ?></span>
+                            <?php endwhile; ?>
+                        <?php else: ?>
+                            <span class="badge bg-light text-muted border">Sin etiquetas</span>
+                        <?php endif; ?>
                     </div>
                 </section>
 
-                <!-- Sección Foro de Preguntas -->
                 <section id="foro">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="fw-bold mb-0">Foro de Dudas (<?php echo $total_preguntas; ?>)</h4>
@@ -287,11 +279,9 @@
                     </div>
 
                     <?php if($total_preguntas > 0): ?>
-                        
                         <?php while($pregunta = mysqli_fetch_assoc($resultado_preguntas)): ?>
                             <?php 
                                 $id_preg = $pregunta['id_pregunta'];
-                                // Traemos las respuestas de esta pregunta especificamente
                                 $sql_respuestas = "
                                     SELECT fr.*, u.nombre, u.apellido 
                                     FROM foro_respuestas fr
@@ -302,7 +292,6 @@
                                 $res_respuestas = mysqli_query($conexion, $sql_respuestas);
                             ?>
 
-                            <!-- Tarjeta de Pregunta -->
                             <div class="card border-0 shadow-sm mb-4 rounded-4">
                                 <div class="card-body p-4">
                                     
@@ -328,7 +317,6 @@
 
                                     <p class="text-secondary mb-3" style="white-space: pre-wrap;"><?php echo htmlspecialchars($pregunta['cuerpo']); ?></p>
 
-                                    <!-- Botón de Responder -->
                                     <?php if($esta_inscripto || $es_creador): ?>
                                         <div class="mb-3">
                                             <button class="btn btn-sm btn-outline-secondary border-0 px-0" type="button" data-bs-toggle="collapse" data-bs-target="#responderCollapse<?php echo $id_preg; ?>">
@@ -336,7 +324,6 @@
                                             </button>
                                         </div>
 
-                                        <!-- Formulario Plegable de Respuesta -->
                                         <div class="collapse mb-3" id="responderCollapse<?php echo $id_preg; ?>">
                                             <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="bg-light p-3 rounded-3 border">
                                                 <input type="hidden" name="accion_foro" value="crear_respuesta">
@@ -347,11 +334,9 @@
                                         </div>
                                     <?php endif; ?>
 
-                                    <!-- Respuestas Anidadas -->
                                     <?php if(mysqli_num_rows($res_respuestas) > 0): ?>
                                         <div class="mt-3 pt-3 border-top">
                                             <?php while($resp = mysqli_fetch_assoc($res_respuestas)): ?>
-                                                
                                                 <div class="p-3 mb-2 rounded-3 <?php echo ($resp['es_aceptada'] == 1) ? 'bg-light' : 'bg-body-tertiary'; ?>" style="<?php echo ($resp['es_aceptada'] == 1) ? 'border-left: 4px solid var(--PRIMARY);' : ''; ?>">
                                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                                         <div>
@@ -366,7 +351,6 @@
                                                     <p class="text-secondary mb-2" style="white-space: pre-wrap;"><?php echo htmlspecialchars($resp['cuerpo']); ?></p>
 
                                                     <div class="d-flex gap-2">
-                                                        <!-- Botón para Destacar / Marcar como Aceptada (Creador o Autor de Pregunta) -->
                                                         <?php if(($es_creador || $pregunta['id_autor'] == $id_usuario_actual) && $resp['es_aceptada'] == 0): ?>
                                                             <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline">
                                                                 <input type="hidden" name="accion_foro" value="marcar_aceptada">
@@ -378,7 +362,6 @@
                                                             </form>
                                                         <?php endif; ?>
 
-                                                        <!-- Eliminar Respuesta -->
                                                         <?php if($es_creador || $resp['id_autor'] == $id_usuario_actual): ?>
                                                             <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline ms-auto" onsubmit="return confirm('¿Eliminar respuesta?');">
                                                                 <input type="hidden" name="accion_foro" value="eliminar_respuesta">
@@ -390,7 +373,6 @@
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
-
                                             <?php endwhile; ?>
                                         </div>
                                     <?php endif; ?>
@@ -398,7 +380,6 @@
                                 </div>
                             </div>
                         <?php endwhile; ?>
-
                     <?php else: ?>
                         <div class="card border-0 shadow-sm mb-4">
                             <div class="card-body p-4 text-center text-muted">
@@ -411,10 +392,7 @@
                 </section>
             </div>
 
-            <!-- COLUMNA DERECHA: Estado y Materiales -->
             <div class="col-lg-4">
-                
-                <!-- Tarjeta de Inscripción -->
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-body p-4 text-center">
                         <?php if($es_creador): ?>
@@ -454,7 +432,6 @@
                     </div>
                 </div>
 
-                <!-- Tarjeta de Materiales -->
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
                         <h6 class="fw-bold mb-0">Material Didáctico</h6>
@@ -530,7 +507,6 @@
         </div>
     </main>
 
-    <!-- MODAL PARA NUEVA PREGUNTA EN EL FORO -->
     <?php if($esta_inscripto || $es_creador): ?>
     <div class="modal fade" id="modalNuevaPregunta" tabindex="-1" aria-labelledby="modalNuevaPreguntaLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -564,7 +540,6 @@
     </div>
     <?php endif; ?>
 
-    <!-- MODAL PARA SUBIR MATERIAL -->
     <?php if($es_creador): ?>
     <div class="modal fade" id="modalSubirMaterial" tabindex="-1" aria-labelledby="modalSubirMaterialLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">

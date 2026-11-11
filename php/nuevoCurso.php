@@ -1,42 +1,34 @@
 <?php 
-
-
 if(session_status() == PHP_SESSION_NONE){
     session_start();
 }
 
 require_once 'conexion.php';
-// Si alguien intenta entrar a nuevoCurso.php sin loguearse, lo mando al login
+
 if (!isset($_SESSION['id_usuario'])) {
     header("Location: login.php");
     exit();
 }
 
+$mensaje = '';
+
 if(isset($_POST['botonCrearCurso'])){
     
-    $id_creador = $_SESSION['id_usuario'];
-    $tipo_usuario = $_SESSION['plan'];
-    $estadoCurso = 1;
+    $id_creador =$_SESSION['id_usuario'];
+    $tipo_usuario =$_SESSION['plan'];
+    $estadoCurso = isset($_POST['estadoCurso']) ? 1 : 0;
 
     $puede_crear = true;
     
-    if(isset($_POST['estadoCurso'])){
-        $estadoCurso = 1;
-    }else{
-        $estadoCurso = 0;
-    }
-    
-    if($tipo_usuario === "gratis" && $estadoCurso === 1){
-        $sql_cantCursos = "
-        SELECT COUNT(*) as total_activos FROM cursos
-        WHERE id_creador='$id_creador' AND activo=1
+    if($tipo_usuario === "gratis" && $estadoCurso === 1){$sql_cantCursos = "
+            SELECT COUNT(*) as total_activos FROM cursos
+            WHERE id_creador='$id_creador' AND activo=1
         ";
-        $resultadoCantCursos = mysqli_query($conexion, $sql_cantCursos);
-        $filaResultadoCant = mysqli_fetch_array($resultadoCantCursos);
+        $resultadoCantCursos = mysqli_query($conexion,$sql_cantCursos);
+        $filaResultadoCant = mysqli_fetch_assoc($resultadoCantCursos);
 
-        if($filaResultadoCant['total_activos'] >= 3){
-            $puede_crear = false;
-            $mensaje = "<div class='alert alert-warning text-center fw-medium' role='alert'>
+        if($filaResultadoCant['total_activos'] >= 3){$puede_crear = false;
+            $mensaje = "<div class='alert alert-warning text-center fw-medium mb-4' role='alert'>
                             <i class='bi bi-exclamation-triangle-fill me-2'></i>
                             Límite alcanzado: Ya tienes 3 cursos activos en tu Plan Gratuito. 
                             Puedes guardarlo como borrador desmarcando 'Publicar como Activo' o solicitar el Plan Pro.
@@ -44,52 +36,62 @@ if(isset($_POST['botonCrearCurso'])){
         }
     }
     
-
     if($puede_crear){
-        extract($_POST);
-
-        if($privacidad == "0"){
-            $es_publico = 0; // Es Publico
-        }else{
-            $es_publico = 1; // Es Privado
-        }
-
-        if($costo == "1"){
-            $es_pago = 1; // Es Pago
-        }else{
-            $es_pago = 0; // Es Gratuito
-        }
-
+        $titulo = mysqli_real_escape_string($conexion, trim($_POST['titulo']));$descripcion = mysqli_real_escape_string($conexion, trim($_POST['descripcion']));
+        $es_publico = ((int)$_POST['privacidad'] === 0) ? 1 : 0;
+        $es_pago = ((int)$_POST['costo'] === 1) ? 1 : 0;
         $cupo = !empty($_POST['cupo']) ? (int)$_POST['cupo'] : "NULL";
+        $fechaInicio = mysqli_real_escape_string($conexion, $_POST['fechaInicio']);$fechaFin = mysqli_real_escape_string($conexion,$_POST['fechaFin']);
 
         $sql_insert = "
-        INSERT INTO cursos (id_creador, titulo, descripcion, es_publico, es_pago, cupo, fecha_inicio, fecha_fin, activo)
-        VALUES ($id_creador, '$titulo', '$descripcion', $es_publico, $es_pago, $cupo, '$fechaInicio', $fechaFin, $estadoCurso)
+            INSERT INTO cursos (id_creador, titulo, descripcion, es_publico, es_pago, cupo, fecha_inicio, fecha_fin, activo)
+            VALUES ($id_creador, '$titulo', '$descripcion', $es_publico,$es_pago, $cupo, '$fechaInicio', '$fechaFin',$estadoCurso)
         ";
 
-        if (mysqli_query($conexion, $sql_insert)) {
-            $mensaje = "<div class='alert alert-success text-center fw-medium' role='alert'>
+        if (mysqli_query($conexion,$sql_insert)) {
+            $id_curso_nuevo = mysqli_insert_id($conexion);
+
+            // PROCESAMIENTO DE ETIQUETAS DEL CURSO
+            if (isset($_POST['etiquetas']) && is_array($_POST['etiquetas'])) {
+                foreach ($_POST['etiquetas'] as $nombreEtiqueta) {$nombreLimpio = mysqli_real_escape_string($conexion, trim(str_replace('#', '', $nombreEtiqueta)));
+                    if (!empty($nombreLimpio)) {
+                        $res_tag = mysqli_query($conexion, "SELECT id_etiqueta FROM etiquetas WHERE LOWER(nombre) = LOWER('$nombreLimpio')");
+                        if (mysqli_num_rows($res_tag) > 0) {
+                            $id_etiqueta = mysqli_fetch_assoc($res_tag)['id_etiqueta'];
+                        } else {
+                            mysqli_query($conexion, "INSERT INTO etiquetas (nombre) VALUES ('$nombreLimpio')");
+                            $id_etiqueta = mysqli_insert_id($conexion);
+                        }
+                        mysqli_query($conexion, "INSERT IGNORE INTO curso_etiquetas (id_curso, id_etiqueta) VALUES ($id_curso_nuevo,$id_etiqueta)");
+                    }
+                }
+            }
+
+            $mensaje = "<div class='alert alert-success text-center fw-medium mb-4' role='alert'>
                             <i class='bi bi-check-circle-fill me-2'></i>¡Curso creado exitosamente!
                         </div>";
         } else {
-            $mensaje = "<div class='alert alert-danger text-center' role='alert'>Error: " . mysqli_error($conexion) . "</div>";
+            $mensaje = "<div class='alert alert-danger text-center mb-4' role='alert'>Error: " . mysqli_error($conexion) . "</div>";
         }
     }
-
 }
 
-    $titulo_pagina = 'Nuevo Curso - Cursolandia';
-    $ruta = '../'; 
-    require_once 'header.php'; 
+// Consultamos el catálogo de etiquetas para las sugerencias
+$sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
+$res_todas_etiquetas = mysqli_query($conexion,$sql_todas_etiquetas);
 
+$titulo_pagina = 'Nuevo Curso - Cursolandia';$ruta = '../'; 
+require_once 'header.php'; 
 ?>
 
     <main class="container my-5">
         <div class="row justify-content-center">
             <div class="col-lg-10">
                 
+                <?php echo $mensaje; ?>
+
                 <!-- Tarjeta del Formulario -->
-                <div class="card shadow-sm border-0 rounded-3">
+                <div class="card shadow-sm border-0 rounded-4">
                     
                     <div class="card-header bg-white border-bottom py-4 px-4 px-lg-5">
                         <h3 class="fw-bold mb-0 text-dark">Crear Nuevo Curso</h3>
@@ -102,25 +104,37 @@ if(isset($_POST['botonCrearCurso'])){
                                 
                                 <!-- COLUMNA IZQUIERDA: Textos Principales -->
                                 <div class="col-md-7">
-                                    <!-- Título (Máx 30 caracteres según diccionario) -->
                                     <div class="mb-4">
                                         <label for="titulo" class="form-label fw-medium text-dark">Título del Curso <span class="text-danger">*</span></label>
                                         <input type="text" class="form-control custom-input" id="titulo" name="titulo" maxlength="30" placeholder="Ej: Desarrollo Web con PHP" required>
                                         <div class="form-text">Máximo 30 caracteres.</div>
                                     </div>
                                     
-                                    <!-- Descripción (Máx 1000 caracteres) -->
-                                    <div class="mb-3">
+                                    <div class="mb-4">
                                         <label for="descripcion" class="form-label fw-medium text-dark">Descripción <span class="text-danger">*</span></label>
-                                        <textarea class="form-control custom-input" id="descripcion" name="descripcion" rows="8" maxlength="1000" placeholder="Escribe de qué trata el curso, qué aprenderán los alumnos..." required></textarea>
+                                        <textarea class="form-control custom-input" id="descripcion" name="descripcion" rows="6" maxlength="1000" placeholder="Escribe de qué trata el curso..." required></textarea>
                                         <div class="form-text">Máximo 1000 caracteres.</div>
+                                    </div>
+
+                                    <!-- Buscador y Selección de Etiquetas -->
+                                    <div class="mb-3">
+                                        <label for="buscadorEtiquetas" class="form-label fw-medium text-dark">Etiquetas (Opcional)</label>
+                                        <input type="text" class="form-control custom-input mb-2" id="buscadorEtiquetas" list="listaSugerencias" placeholder="Añadir etiquetas (ej: #Programación, #PHP)..." autocomplete="off">
+                                        <datalist id="listaSugerencias">
+                                            <?php while($tag = mysqli_fetch_assoc($res_todas_etiquetas)): ?>
+                                                <option value="<?php echo htmlspecialchars($tag['nombre']); ?>"></option>
+                                            <?php endwhile; ?>
+                                        </datalist>
+
+                                        <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap gap-2" style="min-height: 80px;">
+                                            <!-- Etiquetas dinámicas vía JS -->
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- COLUMNA DERECHA: Configuraciones y Fechas -->
                                 <div class="col-md-5">
                                     
-                                    <!-- Privacidad y Costo -->
                                     <div class="row g-3 mb-4">
                                         <div class="col-6">
                                             <label for="privacidad" class="form-label fw-medium text-dark">Privacidad</label>
@@ -138,13 +152,11 @@ if(isset($_POST['botonCrearCurso'])){
                                         </div>
                                     </div>
 
-                                    <!-- Cupo (Opcional) -->
                                     <div class="mb-4">
                                         <label for="cupo" class="form-label fw-medium text-dark">Cupo máximo (Opcional)</label>
                                         <input type="number" class="form-control custom-input" id="cupo" name="cupo" min="1" placeholder="Ej: 30 (Dejar vacío si es sin límite)">
                                     </div>
 
-                                    <!-- Fechas -->
                                     <div class="row g-3 mb-4">
                                         <div class="col-6">
                                             <label for="fechaInicio" class="form-label fw-medium text-dark">Inicio <span class="text-danger">*</span></label>
@@ -156,7 +168,6 @@ if(isset($_POST['botonCrearCurso'])){
                                         </div>
                                     </div>
 
-                                    <!-- Estado del Curso (Switch Toggle) -->
                                     <div class="mb-3 p-3 bg-light rounded border">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" role="switch" id="estadoCurso" name="estadoCurso" value="1" checked>
@@ -170,9 +181,8 @@ if(isset($_POST['botonCrearCurso'])){
 
                             <hr class="my-4 text-muted">
 
-                            <!-- Botones de Acción (Confirmar y Navegar_a) -->
                             <div class="d-flex justify-content-end gap-3">
-                                <a href="index.html" class="btn btn-light fw-medium px-4 text-muted border">Cancelar</a>
+                                <a href="misCursos.php" class="btn btn-light fw-medium px-4 text-muted border">Cancelar</a>
                                 <button type="submit" class="btn btn-purple fw-medium px-4" name="botonCrearCurso">Confirmar Creación</button>
                             </div>
                             
@@ -184,5 +194,53 @@ if(isset($_POST['botonCrearCurso'])){
         </div>
     </main>
 
+    <!-- JS de interacción de Etiquetas -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputEtiqueta = document.getElementById('buscadorEtiquetas');
+            const contenedor = document.getElementById('contenedorEtiquetas');
+
+            function agregarEtiqueta(nombre) {
+                let textoLimpio = nombre.trim().replace(/^#+/, '');
+                if (textoLimpio === '') return;
+
+                const existentes = Array.from(contenedor.querySelectorAll('input[name="etiquetas[]"]'))
+                    .map(inp => inp.value.toLowerCase());
+
+                if (existentes.includes(textoLimpio.toLowerCase())) {
+                    inputEtiqueta.value = '';
+                    return;
+                }
+
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
+                badge.innerHTML = `
+                    #${textoLimpio}
+                    <input type="hidden" name="etiquetas[]" value="${textoLimpio}">
+                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
+                `;
+
+                contenedor.appendChild(badge);
+                inputEtiqueta.value = '';
+            }
+
+            inputEtiqueta.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    agregarEtiqueta(this.value);
+                }
+            });
+
+            inputEtiqueta.addEventListener('change', function() {
+                agregarEtiqueta(this.value);
+            });
+
+            contenedor.addEventListener('click', function(e) {
+                if (e.target.classList.contains('btn-remover-etiqueta')) {
+                    e.target.closest('.item-etiqueta').remove();
+                }
+            });
+        });
+    </script>
 
 <?php require_once 'footer.php'; ?>

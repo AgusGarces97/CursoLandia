@@ -13,10 +13,24 @@
 
     $idUsuario = $_SESSION['id_usuario'];
 
-    // Consultamos todos los datos del usuario activo
+    // 1. Consultamos todos los datos del usuario activo
     $sql_usuario = "SELECT * FROM usuarios WHERE id_usuario = $idUsuario";
     $resultado = mysqli_query($conexion, $sql_usuario);
     $usuario = mysqli_fetch_assoc($resultado);
+
+    // 2. Consultamos las etiquetas de interés del usuario actual
+    $sql_intereses_usuario = "
+        SELECT e.id_etiqueta, e.nombre 
+        FROM usuario_intereses ui 
+        INNER JOIN etiquetas e ON ui.id_etiqueta = e.id_etiqueta 
+        WHERE ui.id_usuario = $idUsuario 
+        ORDER BY e.nombre ASC
+    ";
+    $resultado_intereses = mysqli_query($conexion, $sql_intereses_usuario);
+
+    // 3. Consultamos todas las etiquetas del sistema para las sugerencias del buscador
+    $sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
+    $resultado_todas_etiquetas = mysqli_query($conexion, $sql_todas_etiquetas);
 
     $titulo_pagina = 'Perfil - Cursolandia';
     $ruta = '../'; 
@@ -63,10 +77,10 @@
         <!-- SECCIÓN DE DATOS Y FORMULARIO -->
         <section class="bg-white rounded-4 shadow-sm p-4 p-lg-5 border">
             
-            <!-- BLOQUE DE ALERTAS (Edición de Perfil y Solicitudes Pro) -->
+            <!-- BLOQUE DE ALERTAS -->
             <?php if(isset($_GET['editado']) && $_GET['editado'] == 'exito'): ?>
                 <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
-                    <i class="bi bi-check-circle-fill me-2"></i><strong>¡Perfil actualizado!</strong> Tus datos se guardaron correctamente.
+                    <i class="bi bi-check-circle-fill me-2"></i><strong>¡Perfil actualizado!</strong> Tus datos e intereses se guardaron correctamente.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php elseif(isset($_GET['editado']) && $_GET['editado'] == 'error'): ?>
@@ -92,9 +106,7 @@
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3 border-bottom pb-3">
                     <h3 class="fw-bold mb-0 text-dark">Datos Personales</h3>
                     <div class="d-flex gap-2">
-                        <!-- Type="button" para que no envíe el formulario principal -->
                         <button type="button" class="btn btn-outline-secondary fw-medium">Cambiar Contraseña</button>
-                        <!-- Type="submit" para guardar los cambios del perfil -->
                         <button type="submit" class="btn btn-purple fw-medium" name="botonEditarPerfil">Guardar Cambios</button>
                     </div>
                 </div>
@@ -119,12 +131,10 @@
                             </div>
                             <div class="col-sm-8">
                                 <label for="dni" class="form-label fw-medium text-dark">DNI</label>
-                                <!-- readonly por RN02 -->
                                 <input type="text" class="form-control custom-input bg-light text-muted" id="dni" value="<?php echo htmlspecialchars($usuario['dni']); ?>" readonly>
                             </div>
                             <div class="col-12">
                                 <label for="email" class="form-label fw-medium text-dark">Email</label>
-                                <!-- readonly por RN02 -->
                                 <input type="email" class="form-control custom-input bg-light text-muted" id="email" value="<?php echo htmlspecialchars($usuario['email']); ?>" readonly>
                             </div>
                         </div>
@@ -136,23 +146,32 @@
                         <textarea class="form-control custom-input" id="antecedentes" name="antecedentes" rows="8" placeholder="Escribe tu trayectoria, conocimientos previos o experiencia..."><?php echo htmlspecialchars($usuario['antecedentes'] ?? ''); ?></textarea>
                     </div>
 
-                    <!-- COLUMNA 3: Intereses (Buscador y Etiquetas Elegidas) -->
+                    <!-- COLUMNA 3: Intereses Dinámicos (Buscador y Etiquetas Elegidas) -->
                     <div class="col-lg-4">
                         <label for="buscadorEtiquetas" class="form-label fw-medium text-dark">Intereses</label>
                         
-                        <!-- Buscador de Etiquetas -->
+                        <!-- Buscador de Etiquetas con Sugerencias Datalist -->
                         <div class="position-relative mb-3">
-                            <input type="text" class="form-control custom-input text-center" id="buscadorEtiquetas" placeholder="Buscador de Etiquetas">
+                            <input type="text" class="form-control custom-input text-center" id="buscadorEtiquetas" list="listaSugerencias" placeholder="Buscador de Etiquetas (Presiona Enter para agregar)" autocomplete="off">
+                            <datalist id="listaSugerencias">
+                                <?php while($etiqueta = mysqli_fetch_assoc($resultado_todas_etiquetas)): ?>
+                                    <option value="<?php echo htmlspecialchars($etiqueta['nombre']); ?>"></option>
+                                <?php endwhile; ?>
+                            </datalist>
                         </div>
                         
-                        <!-- Caja de Etiquetas Elegidas (Estáticas por ahora) -->
-                        <div class="border rounded-3 p-3 bg-light d-flex flex-wrap align-content-start gap-2" style="min-height: 140px;">
-                            <span class="badge bg-white text-secondary border p-2 d-flex align-items-center gap-1">
-                                #Programación <button type="button" class="btn-close" style="font-size: 0.5rem;"></button>
-                            </span>
-                            <span class="badge bg-white text-secondary border p-2 d-flex align-items-center gap-1">
-                                #PHP <button type="button" class="btn-close" style="font-size: 0.5rem;"></button>
-                            </span>
+                        <!-- Caja de Etiquetas Elegidas (Generadas Dinámicamente) -->
+                        <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap align-content-start gap-2" style="min-height: 140px;">
+                            <?php while($int = mysqli_fetch_assoc($resultado_intereses)): ?>
+                                <span class="badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta">
+                                    #<?php echo htmlspecialchars($int['nombre']); ?>
+                                    <input type="hidden" name="etiquetas[]" value="<?php echo htmlspecialchars($int['nombre']); ?>">
+                                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
+                                </span>
+                            <?php endwhile; ?>
+                        </div>
+                        <div class="form-text mt-2" style="font-size: 0.75rem;">
+                            Escribe una etiqueta y presiona Enter o selecciónala del menú para añadirla.
                         </div>
                     </div>
 
@@ -161,5 +180,58 @@
 
         </section>
     </main>
+
+    <!-- SCRIPT DE INTERACCIÓN DE ETIQUETAS -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputEtiqueta = document.getElementById('buscadorEtiquetas');
+            const contenedor = document.getElementById('contenedorEtiquetas');
+
+            function agregarEtiqueta(nombre) {
+                let textoLimpio = nombre.trim().replace(/^#+/, '');
+                if (textoLimpio === '') return;
+
+                // Evitamos duplicados en la caja
+                const etiquetasExistentes = Array.from(contenedor.querySelectorAll('input[name="etiquetas[]"]'))
+                    .map(inp => inp.value.toLowerCase());
+
+                if (etiquetasExistentes.includes(textoLimpio.toLowerCase())) {
+                    inputEtiqueta.value = '';
+                    return;
+                }
+
+                // Creamos el elemento Badge dinámico con su input hidden para el POST
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
+                badge.innerHTML = `
+                    #${textoLimpio}
+                    <input type="hidden" name="etiquetas[]" value="${textoLimpio}">
+                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
+                `;
+
+                contenedor.appendChild(badge);
+                inputEtiqueta.value = '';
+            }
+
+            // Agregar al presionar Enter o seleccionar opción del datalist
+            inputEtiqueta.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    agregarEtiqueta(this.value);
+                }
+            });
+
+            inputEtiqueta.addEventListener('change', function() {
+                agregarEtiqueta(this.value);
+            });
+
+            // Delegación de eventos para eliminar etiquetas haciendo clic en la 'X'
+            contenedor.addEventListener('click', function(e) {
+                if (e.target.classList.contains('btn-remover-etiqueta')) {
+                    e.target.closest('.item-etiqueta').remove();
+                }
+            });
+        });
+    </script>
 
 <?php require_once 'footer.php'; ?>
