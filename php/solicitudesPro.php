@@ -6,13 +6,13 @@ if (session_status() == PHP_SESSION_NONE) {
 require_once 'conexion.php';
 
 // 1. RESTRICCIÓN DE ACCESO: Si no está logueado o si NO es admin, lo expulsamos.
-if (!isset($_SESSION['id_usuario']) || !isset($_SESSION['plan']) || $_SESSION['plan'] !== 'admin') {
+if (!isset($_SESSION['id_usuario']) || !isset($_SESSION['rol']) || $_SESSION['rol'] !== 'admin') {
     header("Location: ../index.php");
     exit();
 }
 
 $idUsuarioActual = $_SESSION['id_usuario'];
-$rolUsuario = $_SESSION['plan']; // Ajustado para usar 'plan' que es donde guardas 'admin' según header.php
+$rolUsuario = $_SESSION['rol']; // Ajustado para usar 'plan' que es donde guardas 'admin' según header.php
 
 // Procesamiento de aprobación / rechazo por parte del Admin
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_solicitud'])) {
@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_solicitud'])) {
         mysqli_query($conexion, "UPDATE solicitudes_pro SET estado = 'aprobada' WHERE id_solicitud = $idSolicitud");
         
         // 2. Activar Plan Pro y asignar fecha de vencimiento al usuario
-        mysqli_query($conexion, "UPDATE usuarios SET plan = 'pro', fecha_vencimiento = '$fechaVencimiento' WHERE id_usuario = $idUsuarioSolicitante");
+        mysqli_query($conexion, "UPDATE usuarios SET plan = 'pro', vencimiento_pro = '$fechaVencimiento' WHERE id_usuario = $idUsuarioSolicitante");
         
         // 3. Notificamos al usuario
         $titulo_notif = "Plan Pro Activado";
