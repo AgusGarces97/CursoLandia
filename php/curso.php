@@ -11,7 +11,9 @@
     require_once 'conexion.php';
 
     $id_curso = (int)$_GET['id'];
-    $id_usuario_actual = isset($_SESSION['id_usuario']) ? $_SESSION['id_usuario'] : null;
+    $id_usuario_actual = isset($_SESSION['id_usuario']) ? (int)$_SESSION['id_usuario'] : null;
+    $nombre_usuario_actual = isset($_SESSION['nombre']) ? $_SESSION['nombre'] . ' ' . $_SESSION['apellido'] : 'Un usuario';
+    $plan_usuario_actual = isset($_SESSION['plan']) ? $_SESSION['plan'] : 'gratis';
 
     $sql_curso = "
         SELECT c.*, u.nombre, u.apellido 
@@ -29,42 +31,81 @@
 
     $es_creador = ($id_usuario_actual == $curso['id_creador']);
     $esta_inscripto = false;
+    $estado_inscripcion = null;
 
-    $sql_cupo = "SELECT COUNT(id_inscripcion) as total_alumnos FROM inscripciones WHERE id_curso = $id_curso";
+    // Solo se cuentan los alumnos con inscripción aceptada para el cupo
+    $sql_cupo = "SELECT COUNT(id_inscripcion) as total_alumnos FROM inscripciones WHERE id_curso = $id_curso AND estado = 'aceptada'";
     $res_cupo = mysqli_query($conexion, $sql_cupo);
     $total_alumnos = mysqli_fetch_assoc($res_cupo)['total_alumnos'];
 
+    // Consultamos el estado exacto del alumno actual
     if ($id_usuario_actual && !$es_creador) {
-        $sql_check_inscripcion = "SELECT * FROM inscripciones WHERE id_curso = $id_curso AND id_alumno = $id_usuario_actual";
+        $sql_check_inscripcion = "SELECT estado FROM inscripciones WHERE id_curso = $id_curso AND id_alumno = $id_usuario_actual";
         $res_check = mysqli_query($conexion, $sql_check_inscripcion);
         if (mysqli_num_rows($res_check) > 0) {
-            $esta_inscripto = true;
+            $row_check = mysqli_fetch_assoc($res_check);
+            $estado_inscripcion = $row_check['estado'];
+            if ($estado_inscripcion === 'aceptada') {
+                $esta_inscripto = true;
+            }
         }
     }
 
-    // Materiales
+    // =========================================================
+    // LÓGICA DE GESTIÓN DE MATERIALES (CON REGLA DE PLAN GRATUITO)
+    // =========================================================
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_material']) && $_POST['accion_material'] === 'subir' && $es_creador) {
         if (isset($_FILES['archivo_material']) && $_FILES['archivo_material']['error'] === UPLOAD_ERR_OK) {
-            $tamano = $_FILES['archivo_material']['size'];
-            if ($tamano <= 5242880) {
-                $nombre_original = mysqli_real_escape_string($conexion, $_FILES['archivo_material']['name']);
-                $extension = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
+            $tamano_nuevo = $_FILES['archivo_material']['size'];
+            
+            // Límite individual de 5MB por archivo (5242880 bytes)
+            if ($tamano_nuevo <= 5242880) {
                 
-                $dir = '../uploads/materiales/';
-                if (!file_exists($dir)) {
-                    mkdir($dir, 0777, true);
+                $puede_subir = true;
+
+                // REGLA DE NEGOCIO: Usuarios de plan gratuito limitados a 5 archivos y 10MB en total por curso
+                if ($plan_usuario_actual === 'gratis') {
+                    $sql_stats_mat = "SELECT COUNT(*) as total_archivos, COALESCE(SUM(tamano_bytes), 0) as peso_total FROM materiales WHERE id_curso = $id_curso";
+                    $res_stats_mat = mysqli_query($conexion, $sql_stats_mat);
+                    $stats_mat = mysqli_fetch_assoc($res_stats_mat);
+
+                    $cantidad_actual = (int)$stats_mat['total_archivos'];
+                    $peso_actual = (int)$stats_mat['peso_total'];
+                    $limite_peso_total = 10485760; // 10 MB en bytes
+
+                    if ($cantidad_actual >= 5) {
+                        $puede_subir = false;
+                        header("Location: curso.php?id=$id_curso&mat=limite_archivos");
+                        exit();
+                    }
+
+                    if (($peso_actual + $tamano_nuevo) > $limite_peso_total) {
+                        $puede_subir = false;
+                        header("Location: curso.php?id=$id_curso&mat=exceso_total");
+                        exit();
+                    }
                 }
-                
-                $nombre_guardado = 'mat_' . $id_curso . '_' . time() . '.' . $extension;
-                $ruta_relativa = 'uploads/materiales/' . $nombre_guardado;
-                $ruta_destino = '../' . $ruta_relativa;
-                
-                if (move_uploaded_file($_FILES['archivo_material']['tmp_name'], $ruta_destino)) {
-                    $sql_ins = "INSERT INTO materiales (id_curso, nombre_archivo, ruta_archivo, tamano_bytes) 
-                                VALUES ($id_curso, '$nombre_original', '$ruta_relativa', $tamano)";
-                    mysqli_query($conexion, $sql_ins);
-                    header("Location: curso.php?id=$id_curso&mat=exito");
-                    exit();
+
+                if ($puede_subir) {
+                    $nombre_original = mysqli_real_escape_string($conexion, $_FILES['archivo_material']['name']);
+                    $extension = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
+                    
+                    $dir = '../uploads/materiales/';
+                    if (!file_exists($dir)) {
+                        mkdir($dir, 0777, true);
+                    }
+                    
+                    $nombre_guardado = 'mat_' . $id_curso . '_' . time() . '.' . $extension;
+                    $ruta_relativa = 'uploads/materiales/' . $nombre_guardado;
+                    $ruta_destino = '../' . $ruta_relativa;
+                    
+                    if (move_uploaded_file($_FILES['archivo_material']['tmp_name'], $ruta_destino)) {
+                        $sql_ins = "INSERT INTO materiales (id_curso, nombre_archivo, ruta_archivo, tamano_bytes) 
+                                    VALUES ($id_curso, '$nombre_original', '$ruta_relativa', $tamano_nuevo)";
+                        mysqli_query($conexion, $sql_ins);
+                        header("Location: curso.php?id=$id_curso&mat=exito");
+                        exit();
+                    }
                 }
             } else {
                 header("Location: curso.php?id=$id_curso&mat=exceso_tamano");
@@ -89,53 +130,157 @@
         exit();
     }
 
-    // Foro
+    // =========================================================
+    // LÓGICA DEL FORO DE DUDAS Y DISPARO DE NOTIFICACIONES
+    // =========================================================
+
+    // A. Publicar Nueva Pregunta (Notifica a todos los inscriptos aceptados y al docente)
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_pregunta' && ($esta_inscripto || $es_creador)) {
-        $titulo_p = mysqli_real_escape_string($conexion, $_POST['titulo_pregunta']);
-        $cuerpo_p = mysqli_real_escape_string($conexion, $_POST['cuerpo_pregunta']);
+        $titulo_p = mysqli_real_escape_string($conexion, trim($_POST['titulo_pregunta']));
+        $cuerpo_p = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_pregunta']));
         
         if (!empty($titulo_p) && !empty($cuerpo_p)) {
             $sql_ins_p = "INSERT INTO foro_preguntas (id_curso, id_autor, titulo, cuerpo, estado) VALUES ($id_curso, $id_usuario_actual, '$titulo_p', '$cuerpo_p', 'abierta')";
-            mysqli_query($conexion, $sql_ins_p);
-            header("Location: curso.php?id=$id_curso&foro=pregunta_ok#foro");
-            exit();
+            
+            if (mysqli_query($conexion, $sql_ins_p)) {
+                $titulo_curso_esc = mysqli_real_escape_string($conexion, $curso['titulo']);
+                $titulo_notif = mysqli_real_escape_string($conexion, "Nueva pregunta en " . $curso['titulo']);
+                $msj_notif = mysqli_real_escape_string($conexion, "$nombre_usuario_actual ha iniciado una nueva duda en el foro: '$titulo_p'");
+
+                // Destinatarios: Alumnos inscriptos aceptados + Docente creador (Excluyendo al autor)
+                $sql_destinatarios = "
+                    SELECT id_alumno AS id_destinatario FROM inscripciones WHERE id_curso = $id_curso AND id_alumno != $id_usuario_actual AND estado = 'aceptada'
+                    UNION
+                    SELECT id_creador AS id_destinatario FROM cursos WHERE id_curso = $id_curso AND id_creador != $id_usuario_actual
+                ";
+                $res_destinatarios = mysqli_query($conexion, $sql_destinatarios);
+
+                while ($dest = mysqli_fetch_assoc($res_destinatarios)) {
+                    $id_dest = (int)$dest['id_destinatario'];
+                    mysqli_query($conexion, "
+                        INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                        VALUES ($id_dest, '$titulo_notif', '$msj_notif', 'foro_pregunta', 0, NOW())
+                    ");
+                }
+
+                header("Location: curso.php?id=$id_curso&foro=pregunta_ok#foro");
+                exit();
+            }
         }
     }
 
+    // B. Responder Pregunta (Notifica a los participantes del hilo)
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_respuesta' && ($esta_inscripto || $es_creador)) {
         $id_pregunta = (int)$_POST['id_pregunta'];
-        $cuerpo_r = mysqli_real_escape_string($conexion, $_POST['cuerpo_respuesta']);
+        $cuerpo_r = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_respuesta']));
         
         if (!empty($cuerpo_r) && $id_pregunta > 0) {
             $sql_ins_r = "INSERT INTO foro_respuestas (id_pregunta, id_autor, cuerpo, es_aceptada) VALUES ($id_pregunta, $id_usuario_actual, '$cuerpo_r', 0)";
-            mysqli_query($conexion, $sql_ins_r);
-            header("Location: curso.php?id=$id_curso&foro=respuesta_ok#foro");
-            exit();
+            
+            if (mysqli_query($conexion, $sql_ins_r)) {
+                $sql_info_p = "SELECT titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta";
+                $res_info_p = mysqli_query($conexion, $sql_info_p);
+                $info_p = mysqli_fetch_assoc($res_info_p);
+                $titulo_preg = $info_p ? $info_p['titulo'] : 'la pregunta';
+
+                $titulo_notif = mysqli_real_escape_string($conexion, "Nueva respuesta en tu hilo");
+                $msj_notif = mysqli_real_escape_string($conexion, "$nombre_usuario_actual respondió a la consulta sobre '$titulo_preg'");
+
+                $sql_participantes = "
+                    SELECT id_autor AS id_destinatario FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_autor != $id_usuario_actual
+                    UNION
+                    SELECT id_autor AS id_destinatario FROM foro_respuestas WHERE id_pregunta = $id_pregunta AND id_autor != $id_usuario_actual
+                ";
+                $res_participantes = mysqli_query($conexion, $sql_participantes);
+
+                while ($part = mysqli_fetch_assoc($res_participantes)) {
+                    $id_dest = (int)$part['id_destinatario'];
+                    mysqli_query($conexion, "
+                        INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                        VALUES ($id_dest, '$titulo_notif', '$msj_notif', 'foro_respuesta', 0, NOW())
+                    ");
+                }
+
+                header("Location: curso.php?id=$id_curso&foro=respuesta_ok#foro");
+                exit();
+            }
         }
     }
 
+    // C. Destacar / Marcar Respuesta Aceptada (Notifica al autor de la respuesta y participantes)
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'marcar_aceptada') {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $id_pregunta = (int)$_POST['id_pregunta'];
         
-        $sql_chk_p = "SELECT id_autor FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
+        $sql_chk_p = "SELECT id_autor, titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
         $res_chk_p = mysqli_query($conexion, $sql_chk_p);
+        
         if ($row_p = mysqli_fetch_assoc($res_chk_p)) {
             if ($es_creador || $row_p['id_autor'] == $id_usuario_actual) {
                 mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 0 WHERE id_pregunta = $id_pregunta");
                 mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 1 WHERE id_respuesta = $id_respuesta");
+
+                $sql_resp_autor = "SELECT id_autor FROM foro_respuestas WHERE id_respuesta = $id_respuesta";
+                $res_resp_autor = mysqli_query($conexion, $sql_resp_autor);
+                $autor_resp = mysqli_fetch_assoc($res_resp_autor);
+                $id_autor_respuesta = $autor_resp ? (int)$autor_resp['id_autor'] : 0;
+
+                $titulo_preg = $row_p['titulo'];
+
+                if ($id_autor_respuesta > 0 && $id_autor_respuesta != $id_usuario_actual) {
+                    $titulo_dest = mysqli_real_escape_string($conexion, "¡Tu respuesta fue destacada!");
+                    $msj_dest = mysqli_real_escape_string($conexion, "$nombre_usuario_actual ha marcado tu respuesta como aceptada en '$titulo_preg'");
+                    mysqli_query($conexion, "
+                        INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                        VALUES ($id_autor_respuesta, '$titulo_dest', '$msj_dest', 'foro_destacada', 0, NOW())
+                    ");
+                }
+
+                $sql_part_cerrar = "
+                    SELECT id_autor AS id_destinatario FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_autor NOT IN ($id_usuario_actual, $id_autor_respuesta)
+                    UNION
+                    SELECT id_autor AS id_destinatario FROM foro_respuestas WHERE id_pregunta = $id_pregunta AND id_autor NOT IN ($id_usuario_actual, $id_autor_respuesta)
+                ";
+                $res_part_cerrar = mysqli_query($conexion, $sql_part_cerrar);
+                
+                $titulo_cerrar = mysqli_real_escape_string($conexion, "Pregunta resuelta en el foro");
+                $msj_cerrar = mysqli_real_escape_string($conexion, "Se ha marcado una respuesta como aceptada en la consulta '$titulo_preg'");
+
+                while ($p_c = mysqli_fetch_assoc($res_part_cerrar)) {
+                    $id_dest = (int)$p_c['id_destinatario'];
+                    mysqli_query($conexion, "
+                        INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                        VALUES ($id_dest, '$titulo_cerrar', '$msj_cerrar', 'foro_destacada', 0, NOW())
+                    ");
+                }
+
                 header("Location: curso.php?id=$id_curso&foro=destacada_ok#foro");
                 exit();
             }
         }
     }
 
+    // D. Eliminar Pregunta (Notifica al autor de la consulta si la eliminó el docente)
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_pregunta') {
         $id_pregunta = (int)$_POST['id_pregunta'];
-        $sql_chk_p = "SELECT id_autor FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
+        $sql_chk_p = "SELECT id_autor, titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
         $res_chk_p = mysqli_query($conexion, $sql_chk_p);
+        
         if ($row_p = mysqli_fetch_assoc($res_chk_p)) {
-            if ($es_creador || $row_p['id_autor'] == $id_usuario_actual) {
+            $id_autor_pregunta = (int)$row_p['id_autor'];
+            $titulo_preg = $row_p['titulo'];
+
+            if ($es_creador || $id_autor_pregunta == $id_usuario_actual) {
+                
+                if ($id_autor_pregunta != $id_usuario_actual) {
+                    $titulo_del = mysqli_real_escape_string($conexion, "Pregunta eliminada del foro");
+                    $msj_del = mysqli_real_escape_string($conexion, "El docente eliminó tu pregunta '$titulo_preg' en el curso '" . $curso['titulo'] . "'");
+                    mysqli_query($conexion, "
+                        INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                        VALUES ($id_autor_pregunta, '$titulo_del', '$msj_del', 'foro_eliminada', 0, NOW())
+                    ");
+                }
+
                 mysqli_query($conexion, "DELETE FROM foro_respuestas WHERE id_pregunta = $id_pregunta");
                 mysqli_query($conexion, "DELETE FROM foro_preguntas WHERE id_pregunta = $id_pregunta");
                 header("Location: curso.php?id=$id_curso&foro=eliminada_ok#foro");
@@ -144,6 +289,7 @@
         }
     }
 
+    // E. Eliminar Respuesta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_respuesta') {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $sql_chk_r = "SELECT id_autor FROM foro_respuestas WHERE id_respuesta = $id_respuesta";
@@ -157,7 +303,7 @@
         }
     }
 
-    // Consultas
+    // Consultas para renderizado
     $sql_materiales = "SELECT * FROM materiales WHERE id_curso = $id_curso ORDER BY fecha_subida DESC";
     $resultado_materiales = mysqli_query($conexion, $sql_materiales);
     $total_materiales = mysqli_num_rows($resultado_materiales);
@@ -172,7 +318,6 @@
     $resultado_preguntas = mysqli_query($conexion, $sql_preguntas);
     $total_preguntas = mysqli_num_rows($resultado_preguntas);
 
-    // Consulta de Etiquetas Reales del Curso
     $sql_tags_curso = "
         SELECT e.nombre 
         FROM curso_etiquetas ce 
@@ -207,7 +352,17 @@
                 </div>
             <?php elseif($_GET['mat'] == 'exceso_tamano'): ?>
                 <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>El archivo supera el límite permitido (5 MB).
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>El archivo supera el límite permitido de 5 MB por archivo individual.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif($_GET['mat'] == 'limite_archivos'): ?>
+                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Límite alcanzado: Las cuentas gratuitas solo pueden subir un máximo de 5 archivos por curso.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif($_GET['mat'] == 'exceso_total'): ?>
+                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Límite de almacenamiento alcanzado: El peso total combinado de los archivos en el Plan Gratuito no puede superar los 10 MB.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php elseif($_GET['mat'] == 'eliminado'): ?>
@@ -256,7 +411,6 @@
                     <h4 class="fw-bold mb-3">Acerca de este curso</h4>
                     <p class="text-secondary" style="line-height: 1.6; white-space: pre-wrap;"><?php echo htmlspecialchars($curso['descripcion']); ?></p>
                     
-                    <!-- ETIQUETAS DINÁMICAS DEL CURSO -->
                     <div class="d-flex gap-2 mt-3 flex-wrap">
                         <?php if(mysqli_num_rows($res_tags_curso) > 0): ?>
                             <?php while($tag = mysqli_fetch_assoc($res_tags_curso)): ?>
@@ -392,13 +546,16 @@
                 </section>
             </div>
 
+            <!-- TARJETA LATERAL DE INFORMACIÓN E INSCRIPCIÓN -->
             <div class="col-lg-4">
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-body p-4 text-center">
                         <?php if($es_creador): ?>
                             <h5 class="fw-bold text-primary mb-3"><i class="bi bi-person-video3 me-2"></i>Eres el docente</h5>
-                        <?php elseif($esta_inscripto): ?>
+                        <?php elseif($estado_inscripcion === 'aceptada'): ?>
                             <h5 class="fw-bold text-success mb-3"><i class="bi bi-check-circle me-2"></i>Inscripto</h5>
+                        <?php elseif($estado_inscripcion === 'pendiente'): ?>
+                            <h5 class="fw-bold text-warning mb-3"><i class="bi bi-clock-history me-2"></i>Inscripción Pendiente</h5>
                         <?php else: ?>
                             <h5 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle me-2"></i>Información</h5>
                         <?php endif; ?>
@@ -413,11 +570,20 @@
                             <a href="login.php" class="btn btn-purple w-100 fw-medium">Inicia sesión para inscribirte</a>
                         <?php elseif($es_creador): ?>
                             <a href="editarCurso.php?id=<?php echo $id_curso; ?>" class="btn btn-outline-primary w-100 fw-medium">Editar Datos del Curso</a>
-                        <?php elseif($esta_inscripto): ?>
+                        <?php elseif($estado_inscripcion === 'aceptada'): ?>
                             <form action="procesarInscripcion.php" method="POST">
                                 <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
                                 <input type="hidden" name="accion" value="abandonar">
                                 <button type="submit" class="btn btn-outline-danger w-100 fw-medium">Abandonar Curso</button>
+                            </form>
+                        <?php elseif($estado_inscripcion === 'pendiente'): ?>
+                            <div class="alert alert-warning border-0 p-2 text-center small mb-3">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>El docente debe validar tu vacante para cursos de pago.
+                            </div>
+                            <form action="procesarInscripcion.php" method="POST">
+                                <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
+                                <input type="hidden" name="accion" value="abandonar">
+                                <button type="submit" class="btn btn-outline-secondary w-100 fw-medium">Cancelar Solicitud</button>
                             </form>
                         <?php else: ?>
                             <form action="procesarInscripcion.php" method="POST">
@@ -425,7 +591,7 @@
                                 <input type="hidden" name="accion" value="inscribir">
                                 <?php $hay_cupo = ($curso['cupo'] === null || $total_alumnos < $curso['cupo']); ?>
                                 <button type="submit" class="btn btn-purple w-100 fw-medium" <?php echo !$hay_cupo ? 'disabled' : ''; ?>>
-                                    <?php echo $hay_cupo ? 'Inscribirse al Curso' : 'Cupo Lleno'; ?>
+                                    <?php echo $hay_cupo ? ($curso['es_pago'] == 1 ? 'Solicitar Inscripción' : 'Inscribirse al Curso') : 'Cupo Lleno'; ?>
                                 </button>
                             </form>
                         <?php endif; ?>
@@ -498,7 +664,7 @@
                         <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-medium" data-bs-toggle="modal" data-bs-target="#modalSubirMaterial" style="color: var(--PRIMARY); border-color: var(--PRIMARY);">
                             <i class="bi bi-cloud-arrow-up me-2"></i>Subir Material
                         </button>
-                        <div class="form-text mt-2" style="font-size: 0.75rem;">Límite: 5MB por archivo.</div>
+                        <div class="form-text mt-2" style="font-size: 0.75rem;">Límite: Máx 5 archivos y 10MB total (Plan Gratuito).</div>
                     </div>
                     <?php endif; ?>
                 </div>
@@ -557,7 +723,7 @@
                         <div class="mb-3">
                             <label for="archivo_material" class="form-label fw-medium text-dark">Seleccionar Archivo (PDF, ZIP, PNG, JPG)</label>
                             <input type="file" class="form-control custom-input" id="archivo_material" name="archivo_material" required>
-                            <div class="form-text">Tamaño máximo permitido: 5 MB.</div>
+                            <div class="form-text">Límite individual: 5 MB. (Cuentas gratuitas: máximo 5 archivos y 10 MB en total por curso).</div>
                         </div>
                     </div>
                     <div class="modal-footer border-top p-3">

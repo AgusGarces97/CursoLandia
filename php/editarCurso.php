@@ -16,7 +16,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 }
 
 $id_curso = (int)$_GET['id'];
-$id_creador = $_SESSION['id_usuario'];
+$id_creador = (int)$_SESSION['id_usuario'];
 $mensaje = '';
 
 $sql_check = "SELECT * FROM cursos WHERE id_curso = $id_curso AND id_creador = $id_creador";
@@ -29,7 +29,56 @@ if (mysqli_num_rows($res_check) == 0) {
 
 $curso = mysqli_fetch_assoc($res_check);
 
-// Actualizar datos del curso y sus etiquetas
+// =========================================================
+// GESTIÓN DE SOLICITUDES DE ALUMNOS (ACEPTAR / RECHAZAR)
+// =========================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion_alumno'])) {
+    $id_inscripcion = (int)$_POST['id_inscripcion'];
+    $accion_alumno = $_POST['accion_alumno'];
+
+    // Verificamos que la inscripción corresponda a este curso
+    $sql_check_ins = "SELECT i.*, u.nombre, u.apellido FROM inscripciones i INNER JOIN usuarios u ON i.id_alumno = u.id_usuario WHERE i.id_inscripcion = $id_inscripcion AND i.id_curso = $id_curso";
+    $res_check_ins = mysqli_query($conexion, $sql_check_ins);
+
+    if ($row_ins = mysqli_fetch_assoc($res_check_ins)) {
+        $id_alumno_target = (int)$row_ins['id_alumno'];
+        $nombre_alumno = $row_ins['nombre'] . ' ' . $row_ins['apellido'];
+        $titulo_curso_esc = mysqli_real_escape_string($conexion, $curso['titulo']);
+
+        if ($accion_alumno === 'aceptar') {
+            mysqli_query($conexion, "UPDATE inscripciones SET estado = 'aceptada' WHERE id_inscripcion = $id_inscripcion");
+
+            // Notificación al alumno
+            $titulo_notif = mysqli_real_escape_string($conexion, "¡Inscripción Aceptada!");
+            $msj_notif = mysqli_real_escape_string($conexion, "Tu solicitud de inscripción al curso '" . $curso['titulo'] . "' ha sido aceptada por el docente.");
+            mysqli_query($conexion, "
+                INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                VALUES ($id_alumno_target, '$titulo_notif', '$msj_notif', 'plan_pro', 0, NOW())
+            ");
+
+            header("Location: editarCurso.php?id=$id_curso&alumno=aceptado");
+            exit();
+
+        } elseif ($accion_alumno === 'rechazar') {
+            mysqli_query($conexion, "DELETE FROM inscripciones WHERE id_inscripcion = $id_inscripcion");
+
+            // Notificación al alumno
+            $titulo_notif = mysqli_real_escape_string($conexion, "Solicitud de Inscripción Rechazada");
+            $msj_notif = mysqli_real_escape_string($conexion, "Tu solicitud para sumarte al curso '" . $curso['titulo'] . "' fue desestimada por el docente.");
+            mysqli_query($conexion, "
+                INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                VALUES ($id_alumno_target, '$titulo_notif', '$msj_notif', 'foro_eliminada', 0, NOW())
+            ");
+
+            header("Location: editarCurso.php?id=$id_curso&alumno=rechazado");
+            exit();
+        }
+    }
+}
+
+// =========================================================
+// ACTUALIZAR DATOS DEL CURSO Y ETIQUETAS
+// =========================================================
 if (isset($_POST['botonEditarCurso'])) {
     
     $titulo = mysqli_real_escape_string($conexion, trim($_POST['titulo']));
@@ -104,16 +153,21 @@ if (isset($_POST['botonEditarCurso'])) {
     }
 }
 
-// Alumnos inscriptos
+// Alumnos inscriptos y solicitudes
 $sql_alumnos = "
     SELECT i.*, u.nombre, u.apellido, u.email, u.dni
     FROM inscripciones i
     INNER JOIN usuarios u ON i.id_alumno = u.id_usuario
     WHERE i.id_curso = $id_curso
-    ORDER BY i.id_inscripcion DESC
+    ORDER BY i.estado DESC, i.fecha_inscripcion DESC
 ";
 $resultado_alumnos = mysqli_query($conexion, $sql_alumnos);
 $total_alumnos = mysqli_num_rows($resultado_alumnos);
+
+// Conteo específico de confirmados para el cupo
+$sql_cant_aceptados = "SELECT COUNT(*) as total FROM inscripciones WHERE id_curso = $id_curso AND estado = 'aceptada'";
+$res_cant_aceptados = mysqli_query($conexion, $sql_cant_aceptados);
+$total_aceptados = mysqli_fetch_assoc($res_cant_aceptados)['total'];
 
 // Etiquetas asociadas a este curso
 $sql_tags_curso = "
@@ -139,6 +193,18 @@ require_once 'header.php';
             <div class="col-lg-10">
                 
                 <?php echo $mensaje; ?>
+
+                <?php if (isset($_GET['alumno']) && $_GET['alumno'] === 'aceptado'): ?>
+                    <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i>Inscripción del alumno aceptada y notificada correctamente.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php elseif (isset($_GET['alumno']) && $_GET['alumno'] === 'rechazado'): ?>
+                    <div class="alert alert-info alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>Solicitud rechazada y notificada al alumno.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
 
                 <div class="card shadow-sm border-0 rounded-4 mb-5">
                     
@@ -244,14 +310,14 @@ require_once 'header.php';
                     </div>
                 </div>
 
-                <!-- Nómina de Alumnos -->
+                <!-- Nómina de Alumnos y Gestión de Solicitudes -->
                 <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
                     <div class="card-header bg-white border-bottom py-4 px-4 px-lg-5 d-flex justify-content-between align-items-center">
                         <h4 class="fw-bold mb-0 text-dark">
-                            <i class="bi bi-people-fill color-logo me-2"></i>Alumnos Inscriptos
+                            <i class="bi bi-people-fill color-logo me-2"></i>Nómina de Alumnos
                         </h4>
                         <span class="badge bg-purple px-3 py-2 fs-6">
-                            <?php echo $total_alumnos; ?> / <?php echo $curso['cupo'] ? $curso['cupo'] : 'Sin límite'; ?>
+                            <?php echo $total_aceptados; ?> / <?php echo $curso['cupo'] ? $curso['cupo'] : 'Sin límite'; ?> confirmados
                         </span>
                     </div>
 
@@ -265,13 +331,15 @@ require_once 'header.php';
                                             <th>Alumno</th>
                                             <th>DNI</th>
                                             <th>Email</th>
-                                            <th class="pe-4 text-end">Estado</th>
+                                            <th>Estado</th>
+                                            <th class="pe-4 text-end">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php 
                                         $num = 1;
                                         while ($alumno = mysqli_fetch_assoc($resultado_alumnos)): 
+                                            $estado_ins = $alumno['estado'];
                                         ?>
                                             <tr>
                                                 <td class="ps-4 fw-medium text-muted"><?php echo $num++; ?></td>
@@ -280,8 +348,43 @@ require_once 'header.php';
                                                 </td>
                                                 <td class="text-secondary"><?php echo htmlspecialchars($alumno['dni']); ?></td>
                                                 <td class="text-secondary"><?php echo htmlspecialchars($alumno['email']); ?></td>
+                                                <td>
+                                                    <?php if ($estado_ins === 'aceptada'): ?>
+                                                        <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Aceptado</span>
+                                                    <?php elseif ($estado_ins === 'pendiente'): ?>
+                                                        <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Pendiente</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-secondary">Rechazado</span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td class="pe-4 text-end">
-                                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Inscripto</span>
+                                                    <?php if ($estado_ins === 'pendiente'): ?>
+                                                        <div class="d-inline-flex gap-2">
+                                                            <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline">
+                                                                <input type="hidden" name="accion_alumno" value="aceptar">
+                                                                <input type="hidden" name="id_inscripcion" value="<?php echo $alumno['id_inscripcion']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-success fw-medium">
+                                                                    <i class="bi bi-check-lg me-1"></i>Aceptar
+                                                                </button>
+                                                            </form>
+
+                                                            <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Rechazar solicitud de este alumno?');">
+                                                                <input type="hidden" name="accion_alumno" value="rechazar">
+                                                                <input type="hidden" name="id_inscripcion" value="<?php echo $alumno['id_inscripcion']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger fw-medium">
+                                                                    <i class="bi bi-x-lg me-1"></i>Rechazar
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    <?php else: ?>
+                                                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Dar de baja a este alumno del curso?');">
+                                                            <input type="hidden" name="accion_alumno" value="rechazar">
+                                                            <input type="hidden" name="id_inscripcion" value="<?php echo $alumno['id_inscripcion']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-secondary border-0" title="Dar de baja">
+                                                                <i class="bi bi-person-x-fill text-danger fs-6"></i>
+                                                            </button>
+                                                        </form>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endwhile; ?>
@@ -291,7 +394,7 @@ require_once 'header.php';
                         <?php else: ?>
                             <div class="text-center p-5 text-muted">
                                 <i class="bi bi-journal-x display-4 mb-3 d-block opacity-50"></i>
-                                Aún no hay alumnos inscriptos en este curso.
+                                Aún no hay alumnos inscriptos ni solicitudes pendientes en este curso.
                             </div>
                         <?php endif; ?>
                     </div>

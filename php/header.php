@@ -5,6 +5,21 @@ if(session_status() == PHP_SESSION_NONE){
     session_start();
 }
 
+// Consultamos la cantidad de notificaciones no leídas para el usuario activo
+$cant_notif_no_leidas = 0;
+if (isset($_SESSION['id_usuario'])) {
+    // Protección para no incluir conexion.php si ya fue incluido en el archivo principal
+    if (!isset($conexion)) {
+        require_once __DIR__ . '/conexion.php';
+    }
+    $id_user_nav = (int)$_SESSION['id_usuario'];
+    $sql_nav_notif = "SELECT COUNT(*) as total FROM notificaciones WHERE id_usuario = $id_user_nav AND leida = 0";
+    $res_nav_notif = mysqli_query($conexion, $sql_nav_notif);
+    if ($res_nav_notif) {
+        $cant_notif_no_leidas = mysqli_fetch_assoc($res_nav_notif)['total'];
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -43,18 +58,27 @@ if(session_status() == PHP_SESSION_NONE){
                         <li class="nav-item">
                             <a class="nav-link custom-link text-nowrap" href="<?php echo $ruta; ?>php/cursosRecomendados.php">Cursos Recomendados</a>
                         </li>
+                        
+                        <!-- ZONA RESTRINGIDA: Solo visible para Administradores -->
+                        <?php if(isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin'): ?>
                         <li class="nav-item">
                             <a class="nav-link custom-link text-nowrap" href="<?php echo $ruta; ?>php/solicitudesPro.php">Solicitudes Plan Pro</a>
                         </li>                 
+                        <?php endif; ?>
                     </ul>
 
                    <!-- ZONA DINÁMICA: Cambia si hay sesión o no -->
                         <div class="d-flex align-items-center gap-4 mt-2 mt-lg-0">
                             
                             <?php if(isset($_SESSION['id_usuario'])): ?>
-                                <!-- SI ESTÁ LOGUEADO -->
-                                <a class="text-decoration-none" href="<?php echo $ruta; ?>php/notificaciones.php">
+                                <!-- SI ESTÁ LOGUEADO: Campana con enlace directo y contador Badge -->
+                                <a class="text-decoration-none position-relative" href="<?php echo $ruta; ?>php/notificaciones.php" title="Notificaciones">
                                     <i class="bi bi-bell-fill color-logo fs-4"></i>
+                                    <?php if($cant_notif_no_leidas > 0): ?>
+                                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+                                            <?php echo $cant_notif_no_leidas > 99 ? '99+' : $cant_notif_no_leidas; ?>
+                                        </span>
+                                    <?php endif; ?>
                                 </a>
                                 
                                 <!-- Dropdown de Perfil -->
@@ -67,6 +91,8 @@ if(session_status() == PHP_SESSION_NONE){
                                         <li><a class="dropdown-item py-2" href="<?php echo $ruta; ?>php/perfil.php"><i class="bi bi-person me-2"></i>Mi Perfil</a></li>
                                         <?php if($_SESSION['plan'] == 'pro'): ?>
                                             <li><span class="dropdown-item py-2 text-warning fw-bold"><i class="bi bi-star-fill me-2"></i>Cuenta PRO</span></li>
+                                        <?php elseif($_SESSION['plan'] == 'admin'): ?>
+                                            <li><span class="dropdown-item py-2 text-danger fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Admin</span></li>
                                         <?php endif; ?>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item py-2 text-danger fw-medium" href="<?php echo $ruta; ?>php/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión</a></li>

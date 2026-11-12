@@ -42,12 +42,10 @@
         <!-- BANNER DE PERFIL -->
         <section class="perfil-banner rounded-4 shadow-sm mb-5 p-4 p-md-5 d-flex align-items-center">
             <div class="d-flex align-items-center gap-4 w-100">
-                <!-- Foto de Perfil Dinámica (Usa la inicial del nombre real) -->
                 <div class="position-relative">
                     <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($usuario['nombre'] . '+' . $usuario['apellido']); ?>&background=ffffff&color=6c5ce7&size=150" alt="Foto de Perfil" class="rounded-circle border border-4 border-white shadow-sm perfil-img">
                 </div>
                 
-                <!-- Información del Usuario -->
                 <div class="text-white">
                     <h2 class="fw-bold mb-1"><?php echo htmlspecialchars($usuario['nombre'] . ' ' . $usuario['apellido']); ?></h2>
                     <p class="mb-0 fs-5 opacity-75">Rol: <?php echo ucfirst($usuario['rol']); ?></p>
@@ -63,8 +61,6 @@
                             <?php endif; ?>
                         <?php else: ?>
                             <span class="badge bg-white text-primary px-3 py-2 border-0">Plan Gratuito</span>
-                            
-                            <!-- Enlace al formulario de solicitud con comprobante -->
                             <a href="solicitarPro.php" class="btn btn-warning btn-sm fw-bold border-0 shadow-sm px-3 py-2 ms-2">
                                 <i class="bi bi-rocket-takeoff-fill me-1"></i>Solicitar Plan Pro
                             </a>
@@ -77,7 +73,7 @@
         <!-- SECCIÓN DE DATOS Y FORMULARIO -->
         <section class="bg-white rounded-4 shadow-sm p-4 p-lg-5 border">
             
-            <!-- BLOQUE DE ALERTAS -->
+            <!-- BLOQUE DE ALERTAS (Perfil, Solicitudes Pro y Contraseña) -->
             <?php if(isset($_GET['editado']) && $_GET['editado'] == 'exito'): ?>
                 <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
                     <i class="bi bi-check-circle-fill me-2"></i><strong>¡Perfil actualizado!</strong> Tus datos e intereses se guardaron correctamente.
@@ -88,9 +84,24 @@
                     <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Ocurrió un error.</strong> No se pudieron guardar los cambios.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
+            <?php elseif(isset($_GET['pass']) && $_GET['pass'] == 'exito'): ?>
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-shield-check me-2"></i><strong>¡Contraseña actualizada!</strong> Tu nueva clave fue guardada correctamente.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif(isset($_GET['pass']) && $_GET['pass'] == 'actual_incorrecta'): ?>
+                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Error:</strong> La contraseña actual ingresada es incorrecta.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif(isset($_GET['pass']) && $_GET['pass'] == 'no_coinciden'): ?>
+                <div class="alert alert-warning alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-circle-fill me-2"></i><strong>Atención:</strong> La nueva contraseña y su confirmación no coinciden.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             <?php elseif(isset($_GET['solicitud']) && $_GET['solicitud'] == 'enviada'): ?>
                 <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
-                    <i class="bi bi-check-circle-fill me-2"></i><strong>¡Solicitud enviada!</strong> Tu pedido para pasar al Plan Pro fue registrado y está en revisión por el administrador.
+                    <i class="bi bi-check-circle-fill me-2"></i><strong>¡Solicitud enviada!</strong> Tu pedido para pasar al Plan Pro fue registrado y está en revisión.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php elseif(isset($_GET['solicitud']) && $_GET['solicitud'] == 'pendiente'): ?>
@@ -102,19 +113,22 @@
 
             <form action="editarPerfil.php" method="POST">
                 
-                <!-- Cabecera de la sección (Título y Botones) -->
+                <!-- Cabecera de la sección -->
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3 border-bottom pb-3">
                     <h3 class="fw-bold mb-0 text-dark">Datos Personales</h3>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-secondary fw-medium">Cambiar Contraseña</button>
+                        <!-- Botón que abre el Modal de Bootstrap -->
+                        <button type="button" class="btn btn-outline-secondary fw-medium" data-bs-toggle="modal" data-bs-target="#modalCambiarPassword">
+                            <i class="bi bi-key-fill me-1"></i>Cambiar Contraseña
+                        </button>
                         <button type="submit" class="btn btn-purple fw-medium" name="botonEditarPerfil">Guardar Cambios</button>
                     </div>
                 </div>
 
-                <!-- Formulario dividido en 3 columnas -->
+                <!-- Formulario en 3 columnas -->
                 <div class="row g-4">
                     
-                    <!-- COLUMNA 1: Datos Personales (Inputs) -->
+                    <!-- COLUMNA 1: Datos Personales -->
                     <div class="col-lg-4">
                         <div class="row g-3">
                             <div class="col-sm-6">
@@ -146,11 +160,10 @@
                         <textarea class="form-control custom-input" id="antecedentes" name="antecedentes" rows="8" placeholder="Escribe tu trayectoria, conocimientos previos o experiencia..."><?php echo htmlspecialchars($usuario['antecedentes'] ?? ''); ?></textarea>
                     </div>
 
-                    <!-- COLUMNA 3: Intereses Dinámicos (Buscador y Etiquetas Elegidas) -->
+                    <!-- COLUMNA 3: Intereses Dinámicos -->
                     <div class="col-lg-4">
                         <label for="buscadorEtiquetas" class="form-label fw-medium text-dark">Intereses</label>
                         
-                        <!-- Buscador de Etiquetas con Sugerencias Datalist -->
                         <div class="position-relative mb-3">
                             <input type="text" class="form-control custom-input text-center" id="buscadorEtiquetas" list="listaSugerencias" placeholder="Buscador de Etiquetas (Presiona Enter para agregar)" autocomplete="off">
                             <datalist id="listaSugerencias">
@@ -160,7 +173,6 @@
                             </datalist>
                         </div>
                         
-                        <!-- Caja de Etiquetas Elegidas (Generadas Dinámicamente) -->
                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap align-content-start gap-2" style="min-height: 140px;">
                             <?php while($int = mysqli_fetch_assoc($resultado_intereses)): ?>
                                 <span class="badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta">
@@ -181,6 +193,44 @@
         </section>
     </main>
 
+    <!-- MODAL BOOTSTRAP PARA CAMBIAR CONTRASEÑA -->
+    <div class="modal fade" id="modalCambiarPassword" tabindex="-1" aria-labelledby="modalCambiarPasswordLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-dark" id="modalCambiarPasswordLabel">
+                        <i class="bi bi-shield-lock color-logo me-2"></i>Cambiar Contraseña
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <form action="editarPerfil.php" method="POST">
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label for="password_actual" class="form-label fw-medium text-dark">Contraseña Actual <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control custom-input" id="password_actual" name="password_actual" placeholder="Tu clave actual..." required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password_nueva" class="form-label fw-medium text-dark">Nueva Contraseña <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control custom-input" id="password_nueva" name="password_nueva" placeholder="Mínimo 6 caracteres..." required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password_confirmar" class="form-label fw-medium text-dark">Confirmar Nueva Contraseña <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control custom-input" id="password_confirmar" name="password_confirmar" placeholder="Repite la nueva contraseña..." required>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer border-top p-3">
+                        <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-purple fw-bold px-4" name="botonCambiarPassword">Actualizar Clave</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- SCRIPT DE INTERACCIÓN DE ETIQUETAS -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -191,7 +241,6 @@
                 let textoLimpio = nombre.trim().replace(/^#+/, '');
                 if (textoLimpio === '') return;
 
-                // Evitamos duplicados en la caja
                 const etiquetasExistentes = Array.from(contenedor.querySelectorAll('input[name="etiquetas[]"]'))
                     .map(inp => inp.value.toLowerCase());
 
@@ -200,7 +249,6 @@
                     return;
                 }
 
-                // Creamos el elemento Badge dinámico con su input hidden para el POST
                 const badge = document.createElement('span');
                 badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
                 badge.innerHTML = `
@@ -213,7 +261,6 @@
                 inputEtiqueta.value = '';
             }
 
-            // Agregar al presionar Enter o seleccionar opción del datalist
             inputEtiqueta.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -225,7 +272,6 @@
                 agregarEtiqueta(this.value);
             });
 
-            // Delegación de eventos para eliminar etiquetas haciendo clic en la 'X'
             contenedor.addEventListener('click', function(e) {
                 if (e.target.classList.contains('btn-remover-etiqueta')) {
                     e.target.closest('.item-etiqueta').remove();
