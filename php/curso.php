@@ -48,8 +48,11 @@
     $curso = mysqli_fetch_assoc($resultado_curso);
 
     $es_creador = ($id_usuario_actual == $curso['id_creador']);
+    $es_programado = ($curso['activo'] == 0 && !empty($curso['programado']) && $curso['programado'] == 1);
     $esta_inscripto = false;
     $estado_inscripcion = null;
+    $costo_curso = (float)($curso['costo'] ?? 0);
+    $costo_formateado = '$' . number_format($costo_curso, 2, ',', '.');
 
     // Solo se cuentan los alumnos con inscripción aceptada para el cupo
     $sql_cupo = "SELECT COUNT(id_inscripcion) as total_alumnos FROM inscripciones WHERE id_curso = $id_curso AND estado = 'aceptada'";
@@ -369,6 +372,13 @@
         }
     }
 
+    // Configuración visual del banner (imagen subida o degradado por defecto)
+    $tiene_imagen = (!empty($curso['imagen']) && file_exists('../uploads/cursos/' . $curso['imagen']));
+    $clase_gradiente_banner = $tiene_imagen ? '' : 'curso-gradiente-' . (($curso['id_curso'] % 5) + 1);
+    $bg_banner = $tiene_imagen
+        ? 'style="background: linear-gradient(rgba(30, 30, 40, 0.6), rgba(30, 30, 40, 0.85)), url(\'../uploads/cursos/' . htmlspecialchars($curso['imagen']) . '\'); background-size: cover; background-position: center;"'
+        : '';
+
     $titulo_pagina = $curso['titulo'] . ' - Cursolandia';
     $ruta = '../';
     require_once 'header.php' ;
@@ -411,17 +421,25 @@
         <?php endif; ?>
 
         <!-- Banner del Curso -->
-        <div class="curso-header-banner mb-5 rounded-4 shadow-sm p-4 p-md-5">
+        <div class="curso-header-banner <?php echo $clase_gradiente_banner; ?> mb-5 rounded-4 shadow-sm p-4 p-md-5" <?php echo $bg_banner; ?>>
             <div class="d-flex flex-column justify-content-center h-100">
-                <div class="d-flex gap-2 mb-3">
+                <div class="d-flex gap-2 mb-3 flex-wrap">
                     <?php if($curso['activo'] == 1): ?>
                         <span class="badge bg-success">Activo</span>
+                    <?php elseif($es_programado): ?>
+                        <span class="badge bg-primary"><i class="bi bi-calendar-check me-1"></i>Programado (inicia el <?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?>)</span>
                     <?php else: ?>
                         <span class="badge bg-secondary">Borrador</span>
                     <?php endif; ?>
 
                     <?php if($curso['es_pago'] == 1): ?>
-                        <span class="badge bg-warning text-dark">De Pago</span>
+                        <?php if(!$esta_inscripto): ?>
+                            <span class="badge bg-warning text-dark fw-semibold">
+                                <i class="bi bi-tag-fill me-1"></i><?php echo $costo_formateado; ?> ARS
+                            </span>
+                        <?php else: ?>
+                            <span class="badge bg-warning text-dark">De Pago</span>
+                        <?php endif; ?>
                     <?php else: ?>
                         <span class="badge bg-secondary">Gratuito</span>
                     <?php endif; ?>
@@ -597,6 +615,19 @@
                             <h5 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle me-2"></i>Información</h5>
                         <?php endif; ?>
 
+                        <?php if(!$esta_inscripto): ?>
+                            <!-- Bloque destacado de valor / modalidad -->
+                            <div class="p-3 mb-3 rounded-3 bg-light border">
+                                <span class="text-muted small d-block mb-1">Valor del curso</span>
+                                <?php if($curso['es_pago'] == 1): ?>
+                                    <span class="fs-3 fw-bold text-dark"><?php echo $costo_formateado; ?></span>
+                                    <span class="text-muted small">ARS</span>
+                                <?php else: ?>
+                                    <span class="fs-4 fw-bold text-success">Gratuito</span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+
                         <ul class="list-unstyled text-start text-secondary mb-4">
                             <li class="mb-2"><i class="bi bi-calendar-event me-2"></i><strong>Inicio:</strong> <?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?></li>
                             <li class="mb-2"><i class="bi bi-calendar-x me-2"></i><strong>Fin:</strong> <?php echo date("d/m/Y", strtotime($curso['fecha_fin'])); ?></li>
@@ -622,13 +653,18 @@
                                 <input type="hidden" name="accion" value="abandonar">
                                 <button type="submit" class="btn btn-outline-secondary w-100 fw-medium">Cancelar Solicitud</button>
                             </form>
+                        <?php elseif($curso['activo'] == 0): ?>
+                            <div class="alert alert-secondary border-0 p-2 text-center small mb-0">
+                                <i class="bi bi-clock-history me-1"></i>
+                                <?php echo $es_programado ? 'Este curso aún no inició. Las inscripciones abrirán el ' . date("d/m/Y", strtotime($curso['fecha_inicio'])) . '.' : 'Este curso no se encuentra disponible para inscripciones.'; ?>
+                            </div>
                         <?php else: ?>
                             <form action="procesarInscripcion.php" method="POST">
                                 <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
                                 <input type="hidden" name="accion" value="inscribir">
                                 <?php $hay_cupo = ($curso['cupo'] === null || $total_alumnos < $curso['cupo']); ?>
                                 <button type="submit" class="btn btn-purple w-100 fw-medium" <?php echo !$hay_cupo ? 'disabled' : ''; ?>>
-                                    <?php echo $hay_cupo ? ($curso['es_pago'] == 1 ? 'Solicitar Inscripción' : 'Inscribirse al Curso') : 'Cupo Lleno'; ?>
+                                    <?php echo $hay_cupo ? ($curso['es_pago'] == 1 ? 'Solicitar Inscripción (' . $costo_formateado . ')' : 'Inscribirse al Curso') : 'Cupo Lleno'; ?>
                                 </button>
                             </form>
                         <?php endif; ?>

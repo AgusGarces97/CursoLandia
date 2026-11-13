@@ -76,24 +76,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion_alumno'])) {
     }
 }
 
+// Valores iniciales para el formulario
+$titulo_val = $curso['titulo'];
+$descripcion_val = $curso['descripcion'];
+$es_publico_val = (int)$curso['es_publico'];
+$tipo_costo_val = (string)(int)$curso['es_pago'];
+$costo_monto_val = ((float)$curso['costo'] > 0) ? number_format((float)$curso['costo'], 2, '.', '') : '';
+$cupo_val = $curso['cupo'] ?? '';
+$fechaInicio_val = $curso['fecha_inicio'];
+$fechaFin_val = $curso['fecha_fin'];
+$activo_val = ($curso['activo'] == 1 || (!empty($curso['programado']) && $curso['programado'] == 1)) ? 1 : 0;
+
 // =========================================================
 // ACTUALIZAR DATOS DEL CURSO Y ETIQUETAS
 // =========================================================
 if (isset($_POST['botonEditarCurso'])) {
     
-    $titulo = mysqli_real_escape_string($conexion, trim($_POST['titulo']));
-    $descripcion = mysqli_real_escape_string($conexion, trim($_POST['descripcion']));
-    $es_publico = (int)$_POST['privacidad'];
-    $es_pago = (int)$_POST['costo'];
-    $cupo = !empty($_POST['cupo']) ? (int)$_POST['cupo'] : "NULL";
-    $fechaInicio = mysqli_real_escape_string($conexion, $_POST['fechaInicio']);
-    $fechaFin = mysqli_real_escape_string($conexion, $_POST['fechaFin']);
-    $activo = isset($_POST['estadoCurso']) ? 1 : 0;
+    $titulo_raw = trim($_POST['titulo'] ?? '');
+    $descripcion_raw = trim($_POST['descripcion'] ?? '');
+    $es_publico_val = (int)($_POST['privacidad'] ?? 1);
+    $tipo_costo_val = $_POST['tipo_costo'] ?? '0';
+    $es_pago = ((int)$tipo_costo_val === 1) ? 1 : 0;
+    $costo_monto_val = trim($_POST['costo_monto'] ?? '');
+    $costo_normalizado = str_replace(',', '.', $costo_monto_val);
+    $cupo_val = trim($_POST['cupo'] ?? '');
+    $fechaInicio_val = trim($_POST['fechaInicio'] ?? '');
+    $fechaFin_val = trim($_POST['fechaFin'] ?? '');
+    $activo_val = isset($_POST['estadoCurso']) ? 1 : 0;
+
+    $titulo_val = $titulo_raw;
+    $descripcion_val = $descripcion_raw;
+
+    $hoy = date('Y-m-d');
+    if ($activo_val === 1 && $fechaInicio_val > $hoy) {
+        $activo_bd = 0;
+        $programado_bd = 1;
+    } elseif ($activo_val === 1) {
+        $activo_bd = 1;
+        $programado_bd = 0;
+    } else {
+        $activo_bd = 0;
+        $programado_bd = 0;
+    }
 
     $puede_guardar = true;
 
-    if ($_SESSION['plan'] === 'gratis' && $activo == 1) {
-        $sql_cant = "SELECT COUNT(*) as total_activos FROM cursos WHERE id_creador = $id_creador AND activo = 1 AND id_curso != $id_curso";
+    if ($titulo_raw === '' || $descripcion_raw === '' || $fechaInicio_val === '' || $fechaFin_val === '') {
+        $puede_guardar = false;
+        $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                        <i class='bi bi-exclamation-triangle-fill me-2'></i>Todos los campos obligatorios deben estar completos.
+                    </div>";
+    } elseif ($es_pago === 1 && ($costo_normalizado === '' || !is_numeric($costo_normalizado) || (float)$costo_normalizado <= 0)) {
+        $puede_guardar = false;
+        $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                        <i class='bi bi-exclamation-triangle-fill me-2'></i>Debes ingresar un precio válido mayor a $0 para un curso de pago.
+                    </div>";
+    } elseif ($fechaFin_val < $fechaInicio_val) {
+        $puede_guardar = false;
+        $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                        <i class='bi bi-exclamation-triangle-fill me-2'></i>La fecha de fin no puede ser anterior a la fecha de inicio.
+                    </div>";
+    }
+
+    if ($puede_guardar && $_SESSION['plan'] === 'gratis' && $activo_val == 1) {
+        $sql_cant = "SELECT COUNT(*) as total_activos FROM cursos WHERE id_creador = $id_creador AND (activo = 1 OR programado = 1) AND id_curso != $id_curso";
         $res_cant = mysqli_query($conexion, $sql_cant);
         $fila_cant = mysqli_fetch_assoc($res_cant);
 
@@ -101,28 +147,93 @@ if (isset($_POST['botonEditarCurso'])) {
             $puede_guardar = false;
             $mensaje = "<div class='alert alert-warning text-center fw-medium mb-4' role='alert'>
                             <i class='bi bi-exclamation-triangle-fill me-2'></i>
-                            Límite alcanzado: Ya tienes 3 cursos activos en tu Plan Gratuito. 
+                            Límite alcanzado: Ya tienes 3 cursos activos o programados en tu Plan Gratuito. 
                             Guárdalo como borrador desmarcando 'Publicar como Activo' o solicita el Plan Pro.
                         </div>";
         }
     }
 
+    // Procesamiento opcional de imagen de portada (reemplazar o quitar)
+    $imagen_actual = $curso['imagen'] ?? null;
+    $nueva_imagen = $imagen_actual;
+    $imagen_reemplazada = false;
+
     if ($puede_guardar) {
+        if (isset($_POST['eliminar_imagen']) && $_POST['eliminar_imagen'] == '1') {
+            $nueva_imagen = null;
+        }
+
+        if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] !== UPLOAD_ERR_NO_FILE) {
+            if ($_FILES['imagen']['error'] !== UPLOAD_ERR_OK) {
+                $puede_guardar = false;
+                $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                                <i class='bi bi-exclamation-triangle-fill me-2'></i>Error al subir la imagen de portada (verifica que no supere el límite del servidor).
+                            </div>";
+            } else {
+                $ext = strtolower(pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION));
+                $permitidas = ['jpg', 'jpeg', 'png', 'webp'];
+                if (!in_array($ext, $permitidas)) {
+                    $puede_guardar = false;
+                    $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                                    <i class='bi bi-exclamation-triangle-fill me-2'></i>Formato de imagen no válido. Solo se permiten JPG, PNG o WEBP.
+                                </div>";
+                } elseif ($_FILES['imagen']['size'] > 2097152) { // 2 MB
+                    $puede_guardar = false;
+                    $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                                    <i class='bi bi-exclamation-triangle-fill me-2'></i>La imagen de portada no puede superar los 2 MB.
+                                </div>";
+                } else {
+                    $dir_cursos = '../uploads/cursos/';
+                    if (!file_exists($dir_cursos)) {
+                        mkdir($dir_cursos, 0777, true);
+                    }
+                    $nombre_subido = 'curso_' . $id_creador . '_' . time() . '.' . $ext;
+                    if (move_uploaded_file($_FILES['imagen']['tmp_name'], $dir_cursos . $nombre_subido)) {
+                        $nueva_imagen = $nombre_subido;
+                        $imagen_reemplazada = true;
+                    } else {
+                        $puede_guardar = false;
+                        $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                                        <i class='bi bi-exclamation-triangle-fill me-2'></i>No se pudo guardar la imagen de portada en el servidor.
+                                    </div>";
+                    }
+                }
+            }
+        }
+    }
+
+    if ($puede_guardar) {
+        $titulo = mysqli_real_escape_string($conexion, $titulo_raw);
+        $descripcion = mysqli_real_escape_string($conexion, $descripcion_raw);
+        $costo_final = ($es_pago === 1) ? number_format((float)$costo_normalizado, 2, '.', '') : '0.00';
+        $cupo = ($cupo_val !== '') ? (int)$cupo_val : "NULL";
+        $fechaInicio = mysqli_real_escape_string($conexion, $fechaInicio_val);
+        $fechaFin = mysqli_real_escape_string($conexion, $fechaFin_val);
+        $imagen_sql = $nueva_imagen ? "'" . mysqli_real_escape_string($conexion, $nueva_imagen) . "'" : "NULL";
+
         $sql_update = "
             UPDATE cursos SET 
                 titulo = '$titulo',
                 descripcion = '$descripcion',
-                es_publico = $es_publico,
+                es_publico = $es_publico_val,
                 es_pago = $es_pago,
+                costo = $costo_final,
+                imagen = $imagen_sql,
                 cupo = $cupo,
                 fecha_inicio = '$fechaInicio',
                 fecha_fin = '$fechaFin',
-                activo = $activo
+                activo = $activo_bd,
+                programado = $programado_bd
             WHERE id_curso = $id_curso AND id_creador = $id_creador
         ";
 
         if (mysqli_query($conexion, $sql_update)) {
             
+            // Si había una imagen anterior y fue reemplazada o quitada, borramos el archivo viejo
+            if (!empty($imagen_actual) && $imagen_actual !== $nueva_imagen && file_exists('../uploads/cursos/' . $imagen_actual)) {
+                unlink('../uploads/cursos/' . $imagen_actual);
+            }
+
             // ACTUALIZACIÓN DE ETIQUETAS DEL CURSO
             mysqli_query($conexion, "DELETE FROM curso_etiquetas WHERE id_curso = $id_curso");
             if (isset($_POST['etiquetas']) && is_array($_POST['etiquetas'])) {
@@ -147,7 +258,20 @@ if (isset($_POST['botonEditarCurso'])) {
             
             $res_check = mysqli_query($conexion, $sql_check);
             $curso = mysqli_fetch_assoc($res_check);
+            $titulo_val = $curso['titulo'];
+            $descripcion_val = $curso['descripcion'];
+            $es_publico_val = (int)$curso['es_publico'];
+            $tipo_costo_val = (string)(int)$curso['es_pago'];
+            $costo_monto_val = ((float)$curso['costo'] > 0) ? number_format((float)$curso['costo'], 2, '.', '') : '';
+            $cupo_val = $curso['cupo'] ?? '';
+            $fechaInicio_val = $curso['fecha_inicio'];
+            $fechaFin_val = $curso['fecha_fin'];
+            $activo_val = ($curso['activo'] == 1 || (!empty($curso['programado']) && $curso['programado'] == 1)) ? 1 : 0;
         } else {
+            // Si falló el UPDATE y se había subido una imagen nueva, la limpiamos
+            if ($imagen_reemplazada && $nueva_imagen && file_exists('../uploads/cursos/' . $nueva_imagen)) {
+                unlink('../uploads/cursos/' . $nueva_imagen);
+            }
             $mensaje = "<div class='alert alert-danger text-center mb-4' role='alert'>Error: " . mysqli_error($conexion) . "</div>";
         }
     }
@@ -216,20 +340,20 @@ require_once 'header.php';
                     </div>
                     
                     <div class="card-body p-4 p-lg-5">
-                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST">
+                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" enctype="multipart/form-data">
                             
                             <div class="row g-4">
                                 
                                 <div class="col-md-7">
                                     <div class="mb-4">
                                         <label for="titulo" class="form-label fw-medium text-dark">Título del Curso <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control custom-input" id="titulo" name="titulo" maxlength="30" value="<?php echo htmlspecialchars($curso['titulo']); ?>" required>
-                                        <div class="form-text">Máximo 30 caracteres.</div>
+                                        <input type="text" class="form-control custom-input" id="titulo" name="titulo" maxlength="100" value="<?php echo htmlspecialchars($titulo_val); ?>" required>
+                                        <div class="form-text">Máximo 100 caracteres.</div>
                                     </div>
                                     
                                     <div class="mb-4">
                                         <label for="descripcion" class="form-label fw-medium text-dark">Descripción <span class="text-danger">*</span></label>
-                                        <textarea class="form-control custom-input" id="descripcion" name="descripcion" rows="6" maxlength="1000" required><?php echo htmlspecialchars($curso['descripcion']); ?></textarea>
+                                        <textarea class="form-control custom-input" id="descripcion" name="descripcion" rows="6" maxlength="1000" required><?php echo htmlspecialchars($descripcion_val); ?></textarea>
                                         <div class="form-text">Máximo 1000 caracteres.</div>
                                     </div>
 
@@ -256,45 +380,69 @@ require_once 'header.php';
                                 </div>
 
                                 <div class="col-md-5">
+                                    
+                                    <div class="mb-4">
+                                        <label for="imagen" class="form-label fw-medium text-dark">Imagen de Portada</label>
+                                        <?php if (!empty($curso['imagen'])): ?>
+                                            <div class="mb-2">
+                                                <img src="../uploads/cursos/<?php echo htmlspecialchars($curso['imagen']); ?>" alt="Portada actual" class="img-fluid rounded-3 border w-100" style="max-height: 150px; object-fit: cover;">
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="eliminar_imagen" name="eliminar_imagen" value="1">
+                                                <label class="form-check-label small text-danger" for="eliminar_imagen">Quitar imagen actual (usar color por defecto)</label>
+                                            </div>
+                                        <?php endif; ?>
+                                        <input type="file" class="form-control custom-input" id="imagen" name="imagen" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                                        <div class="form-text">JPG, PNG o WEBP (máx. 2 MB). Deja vacío para conservar la actual.</div>
+                                    </div>
+
                                     <div class="row g-3 mb-4">
                                         <div class="col-6">
                                             <label for="privacidad" class="form-label fw-medium text-dark">Privacidad</label>
                                             <select class="form-select custom-input" id="privacidad" name="privacidad">
-                                                <option value="1" <?php echo ($curso['es_publico'] == 1) ? 'selected' : ''; ?>>Público</option>
-                                                <option value="0" <?php echo ($curso['es_publico'] == 0) ? 'selected' : ''; ?>>Privado</option>
+                                                <option value="1" <?php echo ($es_publico_val == 1) ? 'selected' : ''; ?>>Público</option>
+                                                <option value="0" <?php echo ($es_publico_val == 0) ? 'selected' : ''; ?>>Privado</option>
                                             </select>
                                         </div>
                                         <div class="col-6">
-                                            <label for="costo" class="form-label fw-medium text-dark">Costo</label>
-                                            <select class="form-select custom-input" id="costo" name="costo">
-                                                <option value="0" <?php echo ($curso['es_pago'] == 0) ? 'selected' : ''; ?>>Gratuito</option>
-                                                <option value="1" <?php echo ($curso['es_pago'] == 1) ? 'selected' : ''; ?>>Pago</option>
+                                            <label for="tipo_costo" class="form-label fw-medium text-dark">Modalidad</label>
+                                            <select class="form-select custom-input" id="tipo_costo" name="tipo_costo">
+                                                <option value="0" <?php echo ($tipo_costo_val == '0') ? 'selected' : ''; ?>>Gratuito</option>
+                                                <option value="1" <?php echo ($tipo_costo_val == '1') ? 'selected' : ''; ?>>De Pago</option>
                                             </select>
+                                        </div>
+                                        <div class="col-12" id="bloquePrecio" style="<?php echo ($tipo_costo_val == '1') ? '' : 'display: none;'; ?>">
+                                            <label for="costo_monto" class="form-label fw-medium text-dark">Precio del Curso (ARS) <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-light fw-bold">$</span>
+                                                <input type="number" class="form-control custom-input" id="costo_monto" name="costo_monto" min="1" step="0.01" value="<?php echo htmlspecialchars($costo_monto_val); ?>" placeholder="Ej: 15000.00" <?php echo ($tipo_costo_val == '1') ? 'required' : ''; ?>>
+                                            </div>
+                                            <div class="form-text">Indica el valor que abonarán los estudiantes para inscribirse.</div>
                                         </div>
                                     </div>
 
                                     <div class="mb-4">
                                         <label for="cupo" class="form-label fw-medium text-dark">Cupo máximo (Opcional)</label>
-                                        <input type="number" class="form-control custom-input" id="cupo" name="cupo" min="1" value="<?php echo htmlspecialchars($curso['cupo'] ?? ''); ?>" placeholder="Ej: 30 (Dejar vacío si es sin límite)">
+                                        <input type="number" class="form-control custom-input" id="cupo" name="cupo" min="1" value="<?php echo htmlspecialchars($cupo_val); ?>" placeholder="Ej: 30 (Dejar vacío si es sin límite)">
                                     </div>
 
                                     <div class="row g-3 mb-4">
                                         <div class="col-6">
                                             <label for="fechaInicio" class="form-label fw-medium text-dark">Inicio <span class="text-danger">*</span></label>
-                                            <input type="date" class="form-control custom-input" id="fechaInicio" name="fechaInicio" value="<?php echo $curso['fecha_inicio']; ?>" required>
+                                            <input type="date" class="form-control custom-input" id="fechaInicio" name="fechaInicio" value="<?php echo htmlspecialchars($fechaInicio_val); ?>" required>
                                         </div>
                                         <div class="col-6">
                                             <label for="fechaFin" class="form-label fw-medium text-dark">Fin <span class="text-danger">*</span></label>
-                                            <input type="date" class="form-control custom-input" id="fechaFin" name="fechaFin" value="<?php echo $curso['fecha_fin']; ?>" required>
+                                            <input type="date" class="form-control custom-input" id="fechaFin" name="fechaFin" value="<?php echo htmlspecialchars($fechaFin_val); ?>" required>
                                         </div>
                                     </div>
 
                                     <div class="mb-3 p-3 bg-light rounded border">
                                         <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" role="switch" id="estadoCurso" name="estadoCurso" value="1" <?php echo ($curso['activo'] == 1) ? 'checked' : ''; ?>>
+                                            <input class="form-check-input" type="checkbox" role="switch" id="estadoCurso" name="estadoCurso" value="1" <?php echo ($activo_val == 1) ? 'checked' : ''; ?>>
                                             <label class="form-check-label fw-medium text-dark" for="estadoCurso">Publicar como Activo</label>
                                         </div>
-                                        <div class="form-text small mb-0">Desmárcalo si solo quieres guardarlo como borrador.</div>
+                                        <div class="form-text small mb-0">Si la fecha de inicio es futura, se activará automáticamente ese día.</div>
                                     </div>
                                 </div>
                             </div>
@@ -406,6 +554,23 @@ require_once 'header.php';
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            const selectTipoCosto = document.getElementById('tipo_costo');
+            const bloquePrecio = document.getElementById('bloquePrecio');
+            const inputCostoMonto = document.getElementById('costo_monto');
+
+            function actualizarVisibilidadPrecio() {
+                if (selectTipoCosto.value === '1') {
+                    bloquePrecio.style.display = '';
+                    inputCostoMonto.required = true;
+                } else {
+                    bloquePrecio.style.display = 'none';
+                    inputCostoMonto.required = false;
+                }
+            }
+
+            selectTipoCosto.addEventListener('change', actualizarVisibilidadPrecio);
+            actualizarVisibilidadPrecio();
+
             const inputEtiqueta = document.getElementById('buscadorEtiquetas');
             const contenedor = document.getElementById('contenedorEtiquetas');
 

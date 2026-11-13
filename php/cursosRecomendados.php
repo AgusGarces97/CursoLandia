@@ -15,7 +15,7 @@ $id_usuario = (int)$_SESSION['id_usuario'];
 
 // 2. OBTENER INTERESES DEL USUARIO ACTUAL
 $sql_intereses = "
-    SELECT e.id_etiqueta, e.nombre 
+    SELECT DISTINCT e.id_etiqueta, e.nombre 
     FROM usuario_intereses ui
     INNER JOIN etiquetas e ON ui.id_etiqueta = e.id_etiqueta
     WHERE ui.id_usuario = $id_usuario
@@ -24,57 +24,77 @@ $sql_intereses = "
 $res_intereses = mysqli_query($conexion, $sql_intereses);
 
 $intereses_usuario = [];
+$intereses_lower = [];
 $ids_intereses = [];
-while ($row_int = mysqli_fetch_assoc($res_intereses)) {
-    $intereses_usuario[] = $row_int['nombre'];
-    $ids_intereses[] = (int)$row_int['id_etiqueta'];
+if ($res_intereses) {
+    while ($row_int = mysqli_fetch_assoc($res_intereses)) {
+        $intereses_usuario[] = $row_int['nombre'];
+        $intereses_lower[] = mb_strtolower(trim($row_int['nombre']), 'UTF-8');
+        $ids_intereses[] = (int)$row_int['id_etiqueta'];
+    }
 }
 
-// 3. CONSULTAR CURSOS RECOMENDADOS (Pareo con etiquetas + Prioridad Plan PRO)
+// 3. CONSULTAR CURSOS RECOMENDADOS (Pareo exacto con intereses del usuario + Prioridad por coincidencias y Plan PRO)
 $cursos_recomendados = [];
 
 if (count($ids_intereses) > 0) {
-    $lista_ids = implode(',', $ids_intereses);
-
     $sql_recomendados = "
         SELECT 
-            c.*, 
+            c.id_curso,
+            c.id_creador,
+            c.titulo,
+            c.descripcion,
+            c.es_publico,
+            c.es_pago,
+            c.imagen,
+            c.cupo,
+            c.fecha_inicio,
+            c.fecha_fin,
+            c.activo,
+            c.fecha_creacion,
             u.nombre AS nombre_creador, 
             u.apellido AS apellido_creador, 
             u.plan AS plan_creador,
-            COUNT(ce.id_etiqueta) AS coincidencias
+            COUNT(DISTINCT ce.id_etiqueta) AS coincidencias
         FROM cursos c
         INNER JOIN usuarios u ON c.id_creador = u.id_usuario
         INNER JOIN curso_etiquetas ce ON c.id_curso = ce.id_curso
+        INNER JOIN usuario_intereses ui ON ce.id_etiqueta = ui.id_etiqueta
         WHERE c.activo = 1 
           AND c.es_publico = 1
-          AND c.id_creador != $id_usuario
-          AND ce.id_etiqueta IN ($lista_ids)
-        GROUP BY c.id_curso
+          AND ui.id_usuario = $id_usuario
+        GROUP BY 
+            c.id_curso, c.id_creador, c.titulo, c.descripcion, c.es_publico, 
+            c.es_pago, c.imagen, c.cupo, c.fecha_inicio, c.fecha_fin, 
+            c.activo, c.fecha_creacion, u.nombre, u.apellido, u.plan
         ORDER BY 
-            CASE WHEN u.plan = 'pro' THEN 1 ELSE 2 END ASC,
             coincidencias DESC,
-            c.fecha_inicio ASC
+            (u.plan = 'pro') DESC,
+            c.fecha_creacion DESC
     ";
     $res_recomendados = mysqli_query($conexion, $sql_recomendados);
 
-    while ($curso = mysqli_fetch_assoc($res_recomendados)) {
-        // Consultamos todas las etiquetas de este curso para mostrarlas en la tarjeta
-        $id_c = (int)$curso['id_curso'];
-        $sql_tags = "
-            SELECT e.nombre 
-            FROM curso_etiquetas ce 
-            INNER JOIN etiquetas e ON ce.id_etiqueta = e.id_etiqueta 
-            WHERE ce.id_curso = $id_c 
-            ORDER BY e.nombre ASC
-        ";
-        $res_tags = mysqli_query($conexion, $sql_tags);
-        $tags_curso = [];
-        while ($t = mysqli_fetch_assoc($res_tags)) {
-            $tags_curso[] = $t['nombre'];
+    if ($res_recomendados) {
+        while ($curso = mysqli_fetch_assoc($res_recomendados)) {
+            // Consultamos todas las etiquetas de este curso para mostrarlas en la tarjeta
+            $id_c = (int)$curso['id_curso'];
+            $sql_tags = "
+                SELECT e.nombre 
+                FROM curso_etiquetas ce 
+                INNER JOIN etiquetas e ON ce.id_etiqueta = e.id_etiqueta 
+                WHERE ce.id_curso = $id_c 
+                ORDER BY e.nombre ASC
+            ";
+            $res_tags = mysqli_query($conexion, $sql_tags);
+            $tags_curso = [];
+            if ($res_tags) {
+                while ($t = mysqli_fetch_assoc($res_tags)) {
+                    $tags_curso[] = $t['nombre'];
+                }
+            }
+            $curso['etiquetas'] = $tags_curso;
+            $cursos_recomendados[] = $curso;
         }
-        $curso['etiquetas'] = $tags_curso;
-        $cursos_recomendados[] = $curso;
     }
 }
 
@@ -113,7 +133,8 @@ require_once 'header.php';
                 <?php foreach ($cursos_recomendados as $curso): ?>
                     <?php 
                         $es_pro = ($curso['plan_creador'] === 'pro');
-                        $imagen_portada = !empty($curso['imagen']) ? '../uploads/cursos/' . htmlspecialchars($curso['imagen']) : 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80';
+                        $tiene_img = (!empty($curso['imagen']) && file_exists('../uploads/cursos/' . $curso['imagen']));
+                        $clase_grad = $tiene_img ? '' : 'curso-gradiente-' . (($curso['id_curso'] % 5) + 1);
                     ?>
 
                     <div class="col-md-6 col-lg-4">
@@ -126,12 +147,20 @@ require_once 'header.php';
                                 </div>
                             <?php endif; ?>
 
-                            <!-- Imagen del Curso -->
-                            <img src="<?php echo $imagen_portada; ?>" class="card-img-top curso-img" alt="Portada <?php echo htmlspecialchars($curso['titulo']); ?>">
+                            <!-- Imagen o Degradado del Curso -->
+                            <div class="card-img-top curso-img <?php echo $clase_grad; ?> d-flex align-items-center justify-content-center overflow-hidden">
+                                <?php if ($tiene_img): ?>
+                                    <img src="../uploads/cursos/<?php echo htmlspecialchars($curso['imagen']); ?>" class="w-100 h-100" style="object-fit: cover;" alt="Portada <?php echo htmlspecialchars($curso['titulo']); ?>">
+                                <?php else: ?>
+                                    <i class="bi bi-journal-code text-white fs-1 opacity-75"></i>
+                                <?php endif; ?>
+                            </div>
 
                             <div class="card-body pt-3 d-flex flex-column">
-                                <div class="d-flex justify-content-between mb-2">
-                                    <span class="badge bg-success">Activo</span>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-light text-primary border" title="Etiquetas coincidentes con tus intereses">
+                                        <i class="bi bi-hand-thumbs-up-fill me-1"></i><?php echo (int)$curso['coincidencias']; ?> <?php echo ((int)$curso['coincidencias'] === 1) ? 'coincidencia' : 'coincidencias'; ?>
+                                    </span>
                                     <?php if ($curso['es_pago'] == 1): ?>
                                         <span class="badge bg-dark"><i class="bi bi-currency-dollar"></i> Pago</span>
                                     <?php else: ?>
@@ -139,7 +168,7 @@ require_once 'header.php';
                                     <?php endif; ?>
                                 </div>
 
-                                <h5 class="card-title fw-bold text-dark mt-3"><?php echo htmlspecialchars($curso['titulo']); ?></h5>
+                                <h5 class="card-title fw-bold text-dark mt-2"><?php echo htmlspecialchars($curso['titulo']); ?></h5>
                                 
                                 <p class="text-muted small mb-3">
                                     Por: 
@@ -156,7 +185,7 @@ require_once 'header.php';
                                 <!-- Etiquetas del curso (resaltando las que coinciden con el usuario) -->
                                 <div class="d-flex flex-wrap gap-1 mt-auto pt-2">
                                     <?php foreach ($curso['etiquetas'] as $tag_curso): ?>
-                                        <?php $coincide = in_array($tag_curso, $intereses_usuario); ?>
+                                        <?php $coincide = in_array(mb_strtolower(trim($tag_curso), 'UTF-8'), $intereses_lower); ?>
                                         <span class="badge bg-light <?php echo $coincide ? 'text-dark border border-primary' : 'text-secondary border'; ?>">
                                             #<?php echo htmlspecialchars($tag_curso); ?>
                                         </span>

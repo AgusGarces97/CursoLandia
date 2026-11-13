@@ -14,7 +14,7 @@
 
     if ($hay_filtro) {
         // CONSTRUCCIÓN DE CONSULTA DINÁMICA DE BÚSQUEDA
-        $condiciones = ["c.activo = 1", "c.es_publico = 1"];
+        $condiciones = ["(c.activo = 1 OR c.programado = 1)", "c.es_publico = 1"];
 
         if (!empty($buscar)) {
             $condiciones[] = "(c.titulo LIKE '%$buscar%' OR c.descripcion LIKE '%$buscar%' OR u.nombre LIKE '%$buscar%' OR u.apellido LIKE '%$buscar%' OR e.nombre LIKE '%$buscar%')";
@@ -46,7 +46,7 @@
             SELECT c.*, u.nombre, u.apellido, u.plan 
             FROM cursos c
             INNER JOIN usuarios u ON c.id_creador = u.id_usuario
-            WHERE c.activo = 1 AND c.es_publico = 1
+            WHERE (c.activo = 1 OR c.programado = 1) AND c.es_publico = 1
             ORDER BY (u.plan = 'pro') DESC, c.fecha_creacion DESC 
             LIMIT 8
         ";
@@ -75,7 +75,7 @@
                     INNER JOIN usuarios u ON c.id_creador = u.id_usuario
                     INNER JOIN curso_etiquetas ce ON c.id_curso = ce.id_curso
                     INNER JOIN usuario_intereses ui ON ce.id_etiqueta = ui.id_etiqueta
-                    WHERE c.activo = 1 AND c.es_publico = 1 AND ui.id_usuario = $id_usuario_actual
+                    WHERE (c.activo = 1 OR c.programado = 1) AND c.es_publico = 1 AND ui.id_usuario = $id_usuario_actual
                     GROUP BY c.id_curso
                     ORDER BY coincidencias DESC, c.fecha_creacion DESC
                     LIMIT 8
@@ -94,7 +94,7 @@
                 SELECT c.*, u.nombre, u.apellido, u.plan 
                 FROM cursos c
                 INNER JOIN usuarios u ON c.id_creador = u.id_usuario
-                WHERE c.activo = 1 AND c.es_publico = 1
+                WHERE (c.activo = 1 OR c.programado = 1) AND c.es_publico = 1
                 ORDER BY RAND() 
                 LIMIT 8
             ";
@@ -152,19 +152,34 @@
                 <?php if ($total_resultados > 0): ?>
                     <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
                         <?php while ($curso = mysqli_fetch_assoc($result_busqueda)): ?>
+                            <?php 
+                                $tiene_img = (!empty($curso['imagen']) && file_exists('uploads/cursos/' . $curso['imagen']));
+                                $clase_grad = $tiene_img ? '' : 'curso-gradiente-' . (($curso['id_curso'] % 5) + 1);
+                                $es_programado = ($curso['activo'] == 0 && !empty($curso['programado']) && $curso['programado'] == 1);
+                            ?>
                             <div class="col">
                                 <div class="curso-card flex-shrink-0 card border-0 shadow-sm rounded-4 text-start h-100">
-                                    <div class="curso-img bg-light d-flex align-items-center justify-content-center rounded-top border-bottom">
-                                        <i class="bi bi-journal-code text-primary fs-1 opacity-50"></i>
+                                    <div class="curso-img <?php echo $clase_grad; ?> d-flex align-items-center justify-content-center rounded-top border-bottom overflow-hidden">
+                                        <?php if ($tiene_img): ?>
+                                            <img src="uploads/cursos/<?php echo htmlspecialchars($curso['imagen']); ?>" alt="<?php echo htmlspecialchars($curso['titulo']); ?>" class="w-100 h-100" style="object-fit: cover;">
+                                        <?php else: ?>
+                                            <i class="bi bi-journal-code text-white fs-1 opacity-75"></i>
+                                        <?php endif; ?>
                                     </div>
                                     
                                     <div class="card-body p-4 d-flex flex-column">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <?php if ($curso['es_pago'] == 1): ?>
-                                                <span class="badge bg-warning text-dark">De Pago</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-success">Gratis</span>
-                                            <?php endif; ?>
+                                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <?php if ($curso['es_pago'] == 1): ?>
+                                                    <span class="badge bg-warning text-dark">De Pago</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-success">Gratis</span>
+                                                <?php endif; ?>
+
+                                                <?php if ($es_programado): ?>
+                                                    <span class="badge bg-info text-dark"><i class="bi bi-clock me-1"></i>Inicia <?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?></span>
+                                                <?php endif; ?>
+                                            </div>
 
                                             <?php if ($curso['plan'] === 'pro'): ?>
                                                 <span class="badge bg-dark text-warning border border-warning"><i class="bi bi-star-fill me-1"></i>PRO</span>
@@ -213,19 +228,33 @@
                         
                         <?php if (mysqli_num_rows($result_destacados) > 0): ?>
                             <?php while ($curso = mysqli_fetch_assoc($result_destacados)): ?>
-                                
+                                <?php 
+                                    $tiene_img = (!empty($curso['imagen']) && file_exists('uploads/cursos/' . $curso['imagen']));
+                                    $clase_grad = $tiene_img ? '' : 'curso-gradiente-' . (($curso['id_curso'] % 5) + 1);
+                                    $es_programado = ($curso['activo'] == 0 && !empty($curso['programado']) && $curso['programado'] == 1);
+                                ?>
                                 <div class="curso-card flex-shrink-0 d-flex flex-column text-start">
-                                    <div class="curso-img bg-light d-flex align-items-center justify-content-center rounded-top">
-                                        <i class="bi bi-image text-secondary fs-1 opacity-50"></i>
+                                    <div class="curso-img <?php echo $clase_grad; ?> d-flex align-items-center justify-content-center rounded-top overflow-hidden">
+                                        <?php if ($tiene_img): ?>
+                                            <img src="uploads/cursos/<?php echo htmlspecialchars($curso['imagen']); ?>" alt="<?php echo htmlspecialchars($curso['titulo']); ?>" class="w-100 h-100" style="object-fit: cover;">
+                                        <?php else: ?>
+                                            <i class="bi bi-journal-bookmark-fill text-white fs-1 opacity-75"></i>
+                                        <?php endif; ?>
                                     </div>
                                     
                                     <div class="card-body p-3 d-flex flex-column flex-grow-1">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <?php if ($curso['es_pago'] == 1): ?>
-                                                <span class="badge bg-warning text-dark">De Pago</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-success">Gratis</span>
-                                            <?php endif; ?>
+                                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <?php if ($curso['es_pago'] == 1): ?>
+                                                    <span class="badge bg-warning text-dark">De Pago</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-success">Gratis</span>
+                                                <?php endif; ?>
+
+                                                <?php if ($es_programado): ?>
+                                                    <span class="badge bg-info text-dark"><i class="bi bi-clock me-1"></i>Inicia <?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?></span>
+                                                <?php endif; ?>
+                                            </div>
 
                                             <?php if ($curso['plan'] === 'pro'): ?>
                                                 <span class="badge bg-dark text-warning border border-warning"><i class="bi bi-star-fill me-1"></i>PRO</span>
@@ -274,19 +303,33 @@
                         <div class="carrusel-cursos d-flex overflow-auto flex-nowrap gap-4 w-100 py-2 px-1" id="carrusel-recomendados">
                             
                             <?php while ($curso = mysqli_fetch_assoc($result_recomendados)): ?>
-                                
+                                <?php 
+                                    $tiene_img = (!empty($curso['imagen']) && file_exists('uploads/cursos/' . $curso['imagen']));
+                                    $clase_grad = $tiene_img ? '' : 'curso-gradiente-' . (($curso['id_curso'] % 5) + 1);
+                                    $es_programado = ($curso['activo'] == 0 && !empty($curso['programado']) && $curso['programado'] == 1);
+                                ?>
                                 <div class="curso-card flex-shrink-0 d-flex flex-column text-start">
-                                    <div class="curso-img bg-light d-flex align-items-center justify-content-center rounded-top">
-                                        <i class="bi bi-journal-code text-primary fs-1 opacity-50"></i>
+                                    <div class="curso-img <?php echo $clase_grad; ?> d-flex align-items-center justify-content-center rounded-top overflow-hidden">
+                                        <?php if ($tiene_img): ?>
+                                            <img src="uploads/cursos/<?php echo htmlspecialchars($curso['imagen']); ?>" alt="<?php echo htmlspecialchars($curso['titulo']); ?>" class="w-100 h-100" style="object-fit: cover;">
+                                        <?php else: ?>
+                                            <i class="bi bi-journal-code text-white fs-1 opacity-75"></i>
+                                        <?php endif; ?>
                                     </div>
                                     
                                     <div class="card-body p-3 d-flex flex-column flex-grow-1">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <?php if ($curso['es_pago'] == 1): ?>
-                                                <span class="badge bg-warning text-dark">De Pago</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-success">Gratis</span>
-                                            <?php endif; ?>
+                                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <?php if ($curso['es_pago'] == 1): ?>
+                                                    <span class="badge bg-warning text-dark">De Pago</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-success">Gratis</span>
+                                                <?php endif; ?>
+
+                                                <?php if ($es_programado): ?>
+                                                    <span class="badge bg-info text-dark"><i class="bi bi-clock me-1"></i>Inicia <?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?></span>
+                                                <?php endif; ?>
+                                            </div>
 
                                             <?php if (isset($curso['coincidencias']) && $curso['coincidencias'] > 0): ?>
                                                 <span class="badge bg-light text-primary border" title="Coincidencias de intereses">
