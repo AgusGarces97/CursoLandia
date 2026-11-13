@@ -2,6 +2,8 @@
     if (session_status() == PHP_SESSION_NONE) {
         session_start();
     }
+
+    date_default_timezone_set('America/Argentina/Buenos_Aires');
     
     if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
         header("Location: ../index.php");
@@ -13,7 +15,23 @@
     $id_curso = (int)$_GET['id'];
     $id_usuario_actual = isset($_SESSION['id_usuario']) ? (int)$_SESSION['id_usuario'] : null;
     $nombre_usuario_actual = isset($_SESSION['nombre']) ? $_SESSION['nombre'] . ' ' . $_SESSION['apellido'] : 'Un usuario';
-    $plan_usuario_actual = isset($_SESSION['plan']) ? $_SESSION['plan'] : 'gratis';
+    $plan_usuario_actual = 'gratis';
+
+    // Sincronizamos el plan real del usuario activo desde la BD antes de procesar acciones
+    if ($id_usuario_actual) {
+        $sql_plan_user = "SELECT plan, vencimiento_pro FROM usuarios WHERE id_usuario = $id_usuario_actual";
+        $res_plan_user = mysqli_query($conexion, $sql_plan_user);
+        if ($res_plan_user && mysqli_num_rows($res_plan_user) > 0) {
+            $datos_plan_user = mysqli_fetch_assoc($res_plan_user);
+            $plan_usuario_actual = $datos_plan_user['plan'];
+
+            if ($plan_usuario_actual === 'pro' && !empty($datos_plan_user['vencimiento_pro']) && $datos_plan_user['vencimiento_pro'] < date('Y-m-d')) {
+                mysqli_query($conexion, "UPDATE usuarios SET plan = 'gratis', vencimiento_pro = NULL WHERE id_usuario = $id_usuario_actual");
+                $plan_usuario_actual = 'gratis';
+            }
+            $_SESSION['plan'] = $plan_usuario_actual;
+        }
+    }
 
     $sql_curso = "
         SELECT c.*, u.nombre, u.apellido 
@@ -52,65 +70,75 @@
     }
 
     // =========================================================
-    // LÓGICA DE GESTIÓN DE MATERIALES (CON REGLA DE PLAN GRATUITO)
+    // LÓGICA DE GESTIÓN DE MATERIALES SEGÚN PLAN DEL CREADOR
     // =========================================================
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_material']) && $_POST['accion_material'] === 'subir' && $es_creador) {
-        if (isset($_FILES['archivo_material']) && $_FILES['archivo_material']['error'] === UPLOAD_ERR_OK) {
-            $tamano_nuevo = $_FILES['archivo_material']['size'];
-            
-            // Límite individual de 5MB por archivo (5242880 bytes)
-            if ($tamano_nuevo <= 5242880) {
-                
-                $puede_subir = true;
-
-                // REGLA DE NEGOCIO: Usuarios de plan gratuito limitados a 5 archivos y 10MB en total por curso
-                if ($plan_usuario_actual === 'gratis') {
-                    $sql_stats_mat = "SELECT COUNT(*) as total_archivos, COALESCE(SUM(tamano_bytes), 0) as peso_total FROM materiales WHERE id_curso = $id_curso";
-                    $res_stats_mat = mysqli_query($conexion, $sql_stats_mat);
-                    $stats_mat = mysqli_fetch_assoc($res_stats_mat);
-
-                    $cantidad_actual = (int)$stats_mat['total_archivos'];
-                    $peso_actual = (int)$stats_mat['peso_total'];
-                    $limite_peso_total = 10485760; // 10 MB en bytes
-
-                    if ($cantidad_actual >= 5) {
-                        $puede_subir = false;
-                        header("Location: curso.php?id=$id_curso&mat=limite_archivos");
-                        exit();
-                    }
-
-                    if (($peso_actual + $tamano_nuevo) > $limite_peso_total) {
-                        $puede_subir = false;
-                        header("Location: curso.php?id=$id_curso&mat=exceso_total");
-                        exit();
-                    }
-                }
-
-                if ($puede_subir) {
-                    $nombre_original = mysqli_real_escape_string($conexion, $_FILES['archivo_material']['name']);
-                    $extension = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
-                    
-                    $dir = '../uploads/materiales/';
-                    if (!file_exists($dir)) {
-                        mkdir($dir, 0777, true);
-                    }
-                    
-                    $nombre_guardado = 'mat_' . $id_curso . '_' . time() . '.' . $extension;
-                    $ruta_relativa = 'uploads/materiales/' . $nombre_guardado;
-                    $ruta_destino = '../' . $ruta_relativa;
-                    
-                    if (move_uploaded_file($_FILES['archivo_material']['tmp_name'], $ruta_destino)) {
-                        $sql_ins = "INSERT INTO materiales (id_curso, nombre_archivo, ruta_archivo, tamano_bytes) 
-                                    VALUES ($id_curso, '$nombre_original', '$ruta_relativa', $tamano_nuevo)";
-                        mysqli_query($conexion, $sql_ins);
-                        header("Location: curso.php?id=$id_curso&mat=exito");
-                        exit();
-                    }
-                }
+        if (!isset($_FILES['archivo_material']) || $_FILES['archivo_material']['error'] !== UPLOAD_ERR_OK) {
+            $error_code = $_FILES['archivo_material']['error'] ?? UPLOAD_ERR_NO_FILE;
+            if ($error_code === UPLOAD_ERR_INI_SIZE || $error_code === UPLOAD_ERR_FORM_SIZE) {
+                header("Location: curso.php?id=$id_curso&mat=exceso_tamano");
             } else {
+                header("Location: curso.php?id=$id_curso&mat=error_subida");
+            }
+            exit();
+        }
+
+        $tamano_nuevo = (int)$_FILES['archivo_material']['size'];
+        if ($tamano_nuevo <= 0) {
+            header("Location: curso.php?id=$id_curso&mat=error_subida");
+            exit();
+        }
+
+        // REGLA DE NEGOCIO: Usuarios de plan gratuito limitados a 5 archivos, 5MB individual y 10MB total por curso
+        if ($plan_usuario_actual === 'gratis') {
+            $limite_individual = 5242880;  // 5 MB en bytes (5 * 1024 * 1024)
+            $limite_peso_total = 10485760; // 10 MB en bytes (10 * 1024 * 1024)
+
+            if ($tamano_nuevo > $limite_individual) {
                 header("Location: curso.php?id=$id_curso&mat=exceso_tamano");
                 exit();
             }
+
+            $sql_stats_mat = "SELECT COUNT(*) as total_archivos, COALESCE(SUM(tamano_bytes), 0) as peso_total FROM materiales WHERE id_curso = $id_curso";
+            $res_stats_mat = mysqli_query($conexion, $sql_stats_mat);
+            $stats_mat = mysqli_fetch_assoc($res_stats_mat);
+
+            $cantidad_actual = (int)$stats_mat['total_archivos'];
+            $peso_actual = (int)$stats_mat['peso_total'];
+
+            if ($cantidad_actual >= 5) {
+                header("Location: curso.php?id=$id_curso&mat=limite_archivos");
+                exit();
+            }
+
+            if (($peso_actual + $tamano_nuevo) > $limite_peso_total) {
+                header("Location: curso.php?id=$id_curso&mat=exceso_total");
+                exit();
+            }
+        }
+
+        // Para usuarios Pro (o Gratuitos que pasaron las validaciones), se guarda el archivo
+        $nombre_original = mysqli_real_escape_string($conexion, $_FILES['archivo_material']['name']);
+        $extension = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
+        
+        $dir = '../uploads/materiales/';
+        if (!file_exists($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        
+        $nombre_guardado = 'mat_' . $id_curso . '_' . time() . '.' . $extension;
+        $ruta_relativa = 'uploads/materiales/' . $nombre_guardado;
+        $ruta_destino = '../' . $ruta_relativa;
+        
+        if (move_uploaded_file($_FILES['archivo_material']['tmp_name'], $ruta_destino)) {
+            $sql_ins = "INSERT INTO materiales (id_curso, nombre_archivo, ruta_archivo, tamano_bytes) 
+                        VALUES ($id_curso, '$nombre_original', '$ruta_relativa', $tamano_nuevo)";
+            mysqli_query($conexion, $sql_ins);
+            header("Location: curso.php?id=$id_curso&mat=exito");
+            exit();
+        } else {
+            header("Location: curso.php?id=$id_curso&mat=error_subida");
+            exit();
         }
     }
 
@@ -308,6 +336,10 @@
     $resultado_materiales = mysqli_query($conexion, $sql_materiales);
     $total_materiales = mysqli_num_rows($resultado_materiales);
 
+    $sql_peso_mat = "SELECT COALESCE(SUM(tamano_bytes), 0) as peso_total FROM materiales WHERE id_curso = $id_curso";
+    $peso_total_materiales = (int)mysqli_fetch_assoc(mysqli_query($conexion, $sql_peso_mat))['peso_total'];
+    $limite_materiales_gratis_alcanzado = ($plan_usuario_actual === 'gratis' && ($total_materiales >= 5 || $peso_total_materiales >= 10485760));
+
     $sql_preguntas = "
         SELECT fp.*, u.nombre, u.apellido 
         FROM foro_preguntas fp
@@ -363,6 +395,11 @@
             <?php elseif($_GET['mat'] == 'exceso_total'): ?>
                 <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
                     <i class="bi bi-exclamation-triangle-fill me-2"></i>Límite de almacenamiento alcanzado: El peso total combinado de los archivos en el Plan Gratuito no puede superar los 10 MB.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif($_GET['mat'] == 'error_subida'): ?>
+                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>No se pudo subir el archivo. Verifica que sea válido e inténtalo nuevamente.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php elseif($_GET['mat'] == 'eliminado'): ?>
@@ -661,10 +698,18 @@
                     
                     <?php if($es_creador): ?>
                     <div class="card-footer bg-white border-top p-3 text-center">
-                        <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-medium" data-bs-toggle="modal" data-bs-target="#modalSubirMaterial" style="color: var(--PRIMARY); border-color: var(--PRIMARY);">
+                        <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-medium" data-bs-toggle="modal" data-bs-target="#modalSubirMaterial" style="color: var(--PRIMARY); border-color: var(--PRIMARY);" <?php echo $limite_materiales_gratis_alcanzado ? 'disabled' : ''; ?>>
                             <i class="bi bi-cloud-arrow-up me-2"></i>Subir Material
                         </button>
-                        <div class="form-text mt-2" style="font-size: 0.75rem;">Límite: Máx 5 archivos y 10MB total (Plan Gratuito).</div>
+                        <?php if($plan_usuario_actual === 'pro'): ?>
+                            <div class="form-text mt-2 text-success" style="font-size: 0.75rem;">
+                                <i class="bi bi-star-fill me-1"></i>Plan Pro: Subida de archivos y almacenamiento ilimitados.
+                            </div>
+                        <?php else: ?>
+                            <div class="form-text mt-2" style="font-size: 0.75rem;">
+                                Plan Gratuito: <?php echo $total_materiales; ?>/5 archivos • <?php echo formatearBytes($peso_total_materiales); ?> / 10 MB total (máx. 5 MB/archivo).
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <?php endif; ?>
                 </div>
@@ -723,7 +768,11 @@
                         <div class="mb-3">
                             <label for="archivo_material" class="form-label fw-medium text-dark">Seleccionar Archivo (PDF, ZIP, PNG, JPG)</label>
                             <input type="file" class="form-control custom-input" id="archivo_material" name="archivo_material" required>
-                            <div class="form-text">Límite individual: 5 MB. (Cuentas gratuitas: máximo 5 archivos y 10 MB en total por curso).</div>
+                            <?php if($plan_usuario_actual === 'pro'): ?>
+                                <div class="form-text text-success">Plan Pro: Sin límite de cantidad ni de peso por curso.</div>
+                            <?php else: ?>
+                                <div class="form-text">Plan Gratuito: Máximo 5 MB por archivo individual, hasta 5 archivos y 10 MB en total por curso.</div>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <div class="modal-footer border-top p-3">

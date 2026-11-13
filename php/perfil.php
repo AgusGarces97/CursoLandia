@@ -32,6 +32,12 @@
     $sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
     $resultado_todas_etiquetas = mysqli_query($conexion, $sql_todas_etiquetas);
 
+    // 4. Determinar la ruta del avatar a mostrar
+    $ruta_avatar = "https://ui-avatars.com/api/?name=" . urlencode($usuario['nombre'] . '+' . $usuario['apellido']) . "&background=ffffff&color=6c5ce7&size=150";
+    if(!empty($usuario['imagen_perfil']) && $usuario['imagen_perfil'] !== 'default_avatar.png'){
+        $ruta_avatar = '../uploads/perfiles/' . htmlspecialchars($usuario['imagen_perfil']);
+    }
+
     $titulo_pagina = 'Perfil - Cursolandia';
     $ruta = '../'; 
     require_once 'header.php'; 
@@ -43,7 +49,7 @@
         <section class="perfil-banner rounded-4 shadow-sm mb-5 p-4 p-md-5 d-flex align-items-center">
             <div class="d-flex align-items-center gap-4 w-100">
                 <div class="position-relative">
-                    <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($usuario['nombre'] . '+' . $usuario['apellido']); ?>&background=ffffff&color=6c5ce7&size=150" alt="Foto de Perfil" class="rounded-circle border border-4 border-white shadow-sm perfil-img">
+                    <img src="<?php echo $ruta_avatar; ?>" alt="Foto de Perfil" class="rounded-circle border border-4 border-white shadow-sm perfil-img" style="width: 150px; height: 150px; object-fit: cover;">
                 </div>
                 
                 <div class="text-white">
@@ -111,7 +117,8 @@
                 </div>
             <?php endif; ?>
 
-            <form action="editarPerfil.php" method="POST">
+            <!-- Agregamos enctype="multipart/form-data" para permitir subida de archivos -->
+            <form action="editarPerfil.php" method="POST" enctype="multipart/form-data">
                 
                 <!-- Cabecera de la sección -->
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3 border-bottom pb-3">
@@ -150,6 +157,11 @@
                             <div class="col-12">
                                 <label for="email" class="form-label fw-medium text-dark">Email</label>
                                 <input type="email" class="form-control custom-input bg-light text-muted" id="email" value="<?php echo htmlspecialchars($usuario['email']); ?>" readonly>
+                            </div>
+                            <!-- Botón para imagen de perfil -->
+                            <div class="col-12 mt-3 border-top pt-3">
+                                <label for="imagen_perfil" class="form-label fw-medium text-dark">Cambiar Foto de Perfil</label>
+                                <input type="file" class="form-control custom-input" id="imagen_perfil" name="imagen_perfil" accept="image/jpeg, image/png, image/webp">
                             </div>
                         </div>
                     </div>

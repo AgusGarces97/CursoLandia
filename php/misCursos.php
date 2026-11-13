@@ -29,7 +29,7 @@
     require_once 'header.php'; 
 ?>
 
-    <main class="container my-5">
+    <main class="container my-5" style="min-height: 70vh;">
         
         <!-- Cabecera de la sección -->
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-4 pb-3 border-bottom gap-3">
@@ -163,7 +163,7 @@
                     <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center mb-4 rounded-3">
                         <i class="bi bi-exclamation-triangle-fill fs-5 me-3"></i>
                         <div>
-                            <strong>Plan Gratuito:</strong> Tienes <strong><?php echo $cantidad_inscripciones; ?> de 3</strong> inscripciones activas simultáneas. 
+                            <strong>Plan Gratuito:</strong> Tienes <strong><?php echo $cantidad_inscripciones; ?> de 3</strong> inscripciones activas simultáneas. <a href="solicitarPro.php" class="alert-link" style="color: var(--PRIMARY);">Sube a Plan Pro</a> para inscribirte a cursos ilimitados. 
                             <?php if($cantidad_inscripciones >= 3) echo "Has alcanzado tu límite."; ?>
                         </div>
                     </div>

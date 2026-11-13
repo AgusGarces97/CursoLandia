@@ -21,12 +21,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['botonEditarPerfil'])) 
     $edad = (int)$_POST['edad'];
     $antecedentes = mysqli_real_escape_string($conexion, trim($_POST['antecedentes']));
 
+    // --- LÓGICA DE SUBIDA DE IMAGEN DE PERFIL ---
+    $sql_img = "";
+    if (isset($_FILES['imagen_perfil']) && $_FILES['imagen_perfil']['error'] === UPLOAD_ERR_OK) {
+        $ext = strtolower(pathinfo($_FILES['imagen_perfil']['name'], PATHINFO_EXTENSION));
+        $permitidas = ['jpg', 'jpeg', 'png', 'webp'];
+        
+        if (in_array($ext, $permitidas)) {
+            $dir = '../uploads/perfiles/';
+            if (!is_dir($dir)) {
+                mkdir($dir, 0777, true);
+            }
+            $nombre_img = 'perfil_' . $idUsuario . '_' . time() . '.' . $ext;
+            
+            if (move_uploaded_file($_FILES['imagen_perfil']['tmp_name'], $dir . $nombre_img)) {
+                $sql_img = ", imagen_perfil = '$nombre_img'";
+            }
+        }
+    }
+    // --------------------------------------------
+
     $sql_update = "
         UPDATE usuarios 
         SET nombre = '$nombre', 
             apellido = '$apellido', 
             edad = $edad, 
-            antecedentes = '$antecedentes' 
+            antecedentes = '$antecedentes'
+            $sql_img
         WHERE id_usuario = $idUsuario
     ";
 
@@ -81,20 +102,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['botonEditarPerfil'])) 
     }
 
     // Consultar clave actual del usuario en la BD
-    $sql_user = "SELECT clave FROM usuarios WHERE id_usuario = $idUsuario";
+    $sql_user = "SELECT password FROM usuarios WHERE id_usuario = $idUsuario";
     $res_user = mysqli_query($conexion, $sql_user);
 
     if ($res_user && mysqli_num_rows($res_user) > 0) {
         $user_data = mysqli_fetch_assoc($res_user);
         
-        // Verificamos si coincide con hash encriptado o texto plano
-        if (password_verify($pass_actual, $user_data['clave']) || $pass_actual === $user_data['clave']) {
+        // Verificamos si coincide con la clave de la base de datos
+        if (password_verify($pass_actual, $user_data['password']) || $pass_actual === $user_data['password']) {
             
-            // Hasheamos la nueva contraseña de forma segura
-            $nuevo_hash = password_hash($pass_nueva, PASSWORD_DEFAULT);
-            $nuevo_hash_esc = mysqli_real_escape_string($conexion, $nuevo_hash);
+            // Guardamos la nueva clave como texto plano para mantener compatibilidad con el login
+            $pass_nueva_esc = mysqli_real_escape_string($conexion, $pass_nueva);
 
-            $sql_pass = "UPDATE usuarios SET clave = '$nuevo_hash_esc' WHERE id_usuario = $idUsuario";
+            $sql_pass = "UPDATE usuarios SET password = '$pass_nueva_esc' WHERE id_usuario = $idUsuario";
             
             if (mysqli_query($conexion, $sql_pass)) {
                 header("Location: perfil.php?pass=exito");

@@ -59,14 +59,14 @@ require_once 'header.php';
         <!-- Alerta de error -->
         <?php if ($mensaje != ''): ?>
             <div class="alert alert-danger p-2 text-center" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i> <?php echo $mensaje_error; ?>
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> <?php echo $mensaje; ?>
             </div>
         <?php endif; ?>
 
         <form action="login.php" method="POST">
             <div class="mb-3">
                 <label for="emailUsuario" class="form-label fw-medium text-dark">Correo Electrónico</label>
-                <input type="email" class="form-control custom-input" id="emailUsuario" name="emailUsuario" required placeholder="ejemplo@correo.com">
+                <input type="text" class="form-control custom-input" id="emailUsuario" name="emailUsuario" required placeholder="ejemplo@correo.com">
             </div>
             
             <div class="mb-4">

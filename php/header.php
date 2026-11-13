@@ -5,7 +5,7 @@ if(session_status() == PHP_SESSION_NONE){
     session_start();
 }
 
-// Consultamos la cantidad de notificaciones no leídas para el usuario activo
+// Consultamos la cantidad de notificaciones no leídas y sincronizamos el plan del usuario activo
 $cant_notif_no_leidas = 0;
 if (isset($_SESSION['id_usuario'])) {
     // Protección para no incluir conexion.php si ya fue incluido en el archivo principal
@@ -13,6 +13,24 @@ if (isset($_SESSION['id_usuario'])) {
         require_once __DIR__ . '/conexion.php';
     }
     $id_user_nav = (int)$_SESSION['id_usuario'];
+
+    // Sincronizamos plan y rol desde la BD para reflejar cambios sin tener que cerrar sesión
+    $sql_user_nav = "SELECT plan, rol, vencimiento_pro FROM usuarios WHERE id_usuario = $id_user_nav";
+    $res_user_nav = mysqli_query($conexion, $sql_user_nav);
+    if ($res_user_nav && mysqli_num_rows($res_user_nav) > 0) {
+        $datos_user_nav = mysqli_fetch_assoc($res_user_nav);
+        $plan_actual = $datos_user_nav['plan'];
+
+        // Si el Plan Pro tiene fecha de vencimiento y ya pasó, vuelve automáticamente a gratis
+        if ($plan_actual === 'pro' && !empty($datos_user_nav['vencimiento_pro']) && $datos_user_nav['vencimiento_pro'] < date('Y-m-d')) {
+            mysqli_query($conexion, "UPDATE usuarios SET plan = 'gratis', vencimiento_pro = NULL WHERE id_usuario = $id_user_nav");
+            $plan_actual = 'gratis';
+        }
+
+        $_SESSION['plan'] = $plan_actual;
+        $_SESSION['rol'] = $datos_user_nav['rol'];
+    }
+
     $sql_nav_notif = "SELECT COUNT(*) as total FROM notificaciones WHERE id_usuario = $id_user_nav AND leida = 0";
     $res_nav_notif = mysqli_query($conexion, $sql_nav_notif);
     if ($res_nav_notif) {
@@ -91,7 +109,8 @@ if (isset($_SESSION['id_usuario'])) {
                                         <li><a class="dropdown-item py-2" href="<?php echo $ruta; ?>php/perfil.php"><i class="bi bi-person me-2"></i>Mi Perfil</a></li>
                                         <?php if($_SESSION['plan'] == 'pro'): ?>
                                             <li><span class="dropdown-item py-2 text-warning fw-bold"><i class="bi bi-star-fill me-2"></i>Cuenta PRO</span></li>
-                                        <?php elseif($_SESSION['plan'] == 'admin'): ?>
+                                        <?php endif; ?>
+                                        <?php if(isset($_SESSION['rol']) && $_SESSION['rol'] == 'admin'): ?>
                                             <li><span class="dropdown-item py-2 text-danger fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Admin</span></li>
                                         <?php endif; ?>
                                         <li><hr class="dropdown-divider"></li>

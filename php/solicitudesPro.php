@@ -3,6 +3,8 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+date_default_timezone_set('America/Argentina/Buenos_Aires');
+
 require_once 'conexion.php';
 
 // 1. RESTRICCIÓN DE ACCESO: Si no está logueado o si NO es admin, lo expulsamos.
@@ -12,7 +14,7 @@ if (!isset($_SESSION['id_usuario']) || !isset($_SESSION['rol']) || $_SESSION['ro
 }
 
 $idUsuarioActual = $_SESSION['id_usuario'];
-$rolUsuario = $_SESSION['rol']; // Ajustado para usar 'plan' que es donde guardas 'admin' según header.php
+$rolUsuario = $_SESSION['rol'];
 
 // Procesamiento de aprobación / rechazo por parte del Admin
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_solicitud'])) {
@@ -22,7 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_solicitud'])) {
     $accion = $_POST['accion_solicitud'];
 
     if ($accion === 'aprobar') {
-        $fechaVencimiento = mysqli_real_escape_string($conexion, $_POST['fecha_vencimiento']);
+        // Fecha de vencimiento automática: 1 mes después del día de hoy
+        $fechaVencimiento = date('Y-m-d', strtotime('+1 month'));
         
         // 1. Marcar solicitud como aprobada
         mysqli_query($conexion, "UPDATE solicitudes_pro SET estado = 'aprobada' WHERE id_solicitud = $idSolicitud");
@@ -37,6 +40,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_solicitud'])) {
             INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
             VALUES ($idUsuarioSolicitante, '$titulo_notif', '$msj_notif', 'plan_pro', 0, NOW())
         ");
+
+        
+        
+        header("Location: solicitudesPro.php?status=actualizado");
+        exit();
         
     } elseif ($accion === 'rechazar') {
         mysqli_query($conexion, "UPDATE solicitudes_pro SET estado = 'rechazada' WHERE id_solicitud = $idSolicitud");
@@ -48,13 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_solicitud'])) {
             INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
             VALUES ($idUsuarioSolicitante, '$titulo_notif', '$msj_notif', 'foro_eliminada', 0, NOW())
         ");
+        
+        header("Location: solicitudesPro.php?status=actualizado");
+        exit();
     }
-    
-    header("Location: solicitudesPro.php?status=actualizado");
-    exit();
 }
 
-// Consultar todas las solicitudes (Ya sabemos que es admin por la validación inicial)
+// Consultar todas las solicitudes
 $sql_solicitudes = "
     SELECT s.*, u.nombre, u.apellido, u.email 
     FROM solicitudes_pro s
@@ -115,8 +123,8 @@ require_once 'header.php';
 
                                     <!-- Adjunto -->
                                     <td>
-                                        <?php if(!empty($solicitud['comprobante'])): ?>
-                                            <a href="../uploads/comprobantes/<?php echo htmlspecialchars($solicitud['comprobante']); ?>" target="_blank" class="btn btn-sm btn-outline-primary fw-medium">
+                                        <?php if(!empty($solicitud['archivo_comprobante'])): ?>
+                                            <a href="../uploads/comprobantes/<?php echo htmlspecialchars($solicitud['archivo_comprobante']); ?>" target="_blank" class="btn btn-sm btn-outline-primary fw-medium">
                                                 <i class="bi bi-file-earmark-text me-1"></i>Ver Adjunto
                                             </a>
                                         <?php else: ?>
@@ -141,13 +149,12 @@ require_once 'header.php';
                                     <td class="text-end pe-4">
                                         <?php if($solicitud['estado'] == 'pendiente'): ?>
                                             
-                                            <!-- Formulario para Aprobar especificando Fecha de Vencimiento -->
+                                            <!-- Formulario para Aprobar con vencimiento automático a 1 mes -->
                                             <form action="solicitudesPro.php" method="POST" class="d-inline-flex align-items-center gap-2 justify-content-end">
                                                 <input type="hidden" name="id_solicitud" value="<?php echo $solicitud['id_solicitud']; ?>">
                                                 <input type="hidden" name="id_usuario_solicitante" value="<?php echo $solicitud['id_usuario']; ?>">
                                                 
-                                                <!-- Fecha de vencimiento por defecto a 1 año desde hoy -->
-                                                <input type="date" name="fecha_vencimiento" class="form-control form-control-sm" value="<?php echo date('Y-m-d', strtotime('+1 year')); ?>" required style="width: 140px;">
+                                                <span class="text-muted small me-1">Vto: <?php echo date('d/m/Y', strtotime('+1 month')); ?></span>
                                                 
                                                 <button type="submit" name="accion_solicitud" value="aprobar" class="btn btn-sm btn-success fw-medium">Aprobar</button>
                                                 <button type="submit" name="accion_solicitud" value="rechazar" class="btn btn-sm btn-outline-danger fw-medium">Rechazar</button>

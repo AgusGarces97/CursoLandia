@@ -6,6 +6,12 @@
     --WHITE: #ffffff;
 }
 
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
 /* INFORMACIÓN DE ESTILO DE EL NAV */
 
 /* Color de fondo y borde inferior sutil del nav */
