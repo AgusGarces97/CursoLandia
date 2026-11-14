@@ -10,7 +10,7 @@
         exit();
     }
 
-    $idUsuario = $_SESSION['id_usuario'];
+    $idUsuario = (int)$_SESSION['id_usuario'];
 
     // OBTENEMOS LAS INSCRIPCIONES PARA LA PESTAÑA 2
     $sql_mis_inscripciones = "
@@ -22,7 +22,18 @@
         ORDER BY i.id_inscripcion DESC
     ";
     $resultado_inscripciones = mysqli_query($conexion, $sql_mis_inscripciones);
-    $cantidad_inscripciones = mysqli_num_rows($resultado_inscripciones);
+    $lista_inscripciones = [];
+    $cantidad_inscripciones_activas = 0;
+
+    if ($resultado_inscripciones) {
+        while ($fila_ins = mysqli_fetch_assoc($resultado_inscripciones)) {
+            $lista_inscripciones[] = $fila_ins;
+            if ((int)$fila_ins['activo'] === 1) {
+                $cantidad_inscripciones_activas++;
+            }
+        }
+    }
+    $cantidad_inscripciones = count($lista_inscripciones);
 
     $titulo_pagina = 'Mis Cursos - Cursolandia';
     $ruta = '../'; 
@@ -43,7 +54,7 @@
         <?php if(isset($_GET['limite']) && $_GET['limite'] == 'alcanzado'): ?>
             <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                <strong>¡Límite alcanzado!</strong> No puedes inscribirte a más de 3 cursos simultáneamente en el Plan Gratuito.
+                <strong>¡Límite alcanzado!</strong> No puedes inscribirte a nuevos cursos mientras tengas 3 o más inscripciones activas en el Plan Gratuito.
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <?php endif; ?>
@@ -171,8 +182,8 @@
                     <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center mb-4 rounded-3">
                         <i class="bi bi-exclamation-triangle-fill fs-5 me-3"></i>
                         <div>
-                            <strong>Plan Gratuito:</strong> Tienes <strong><?php echo $cantidad_inscripciones; ?> de 3</strong> inscripciones activas simultáneas. <a href="solicitarPro.php" class="alert-link" style="color: var(--PRIMARY);">Sube a Plan Pro</a> para inscribirte a cursos ilimitados. 
-                            <?php if($cantidad_inscripciones >= 3) echo "Has alcanzado tu límite."; ?>
+                            <strong>Plan Gratuito:</strong> Tienes <strong><?php echo $cantidad_inscripciones_activas; ?> de 3</strong> inscripciones activas simultáneas. <a href="solicitarPro.php" class="alert-link" style="color: var(--PRIMARY);">Sube a Plan Pro</a> para inscribirte a cursos ilimitados. 
+                            <?php if($cantidad_inscripciones_activas >= 3) echo "Conservas tus inscripciones actuales, pero no podrás sumarte a nuevos cursos hasta liberar cupo."; ?>
                         </div>
                     </div>
                 <?php endif; ?>
@@ -182,7 +193,7 @@
                     
                     <?php if ($cantidad_inscripciones > 0): ?>
                         
-                        <?php while ($inscripcion = mysqli_fetch_assoc($resultado_inscripciones)): ?>
+                        <?php foreach ($lista_inscripciones as $inscripcion): ?>
                             <?php 
                                 $tiene_img_ins = (!empty($inscripcion['imagen']) && file_exists('../uploads/cursos/' . $inscripcion['imagen']));
                                 $clase_grad_ins = $tiene_img_ins ? '' : 'curso-gradiente-' . (($inscripcion['id_curso'] % 5) + 1);
@@ -205,6 +216,8 @@
 
                                             <?php if ($es_prog_ins): ?>
                                                 <span class="badge bg-info text-dark"><i class="bi bi-calendar-event me-1"></i>Inicia <?php echo date("d/m/Y", strtotime($inscripcion['fecha_inicio'])); ?></span>
+                                            <?php elseif ((int)$inscripcion['activo'] === 0): ?>
+                                                <span class="badge bg-secondary">Pausado / Borrador</span>
                                             <?php endif; ?>
 
                                             <?php if ($inscripcion['es_pago'] == 1): ?>
@@ -219,7 +232,7 @@
                                     </div>
                                 </div>
                             </div>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
 
                     <?php else: ?>
                         <div class="col-12 text-center p-5 bg-light rounded-4 border border-dashed w-100">

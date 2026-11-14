@@ -15,23 +15,7 @@
     $id_curso = (int)$_GET['id'];
     $id_usuario_actual = isset($_SESSION['id_usuario']) ? (int)$_SESSION['id_usuario'] : null;
     $nombre_usuario_actual = isset($_SESSION['nombre']) ? $_SESSION['nombre'] . ' ' . $_SESSION['apellido'] : 'Un usuario';
-    $plan_usuario_actual = 'gratis';
-
-    // Sincronizamos el plan real del usuario activo desde la BD antes de procesar acciones
-    if ($id_usuario_actual) {
-        $sql_plan_user = "SELECT plan, vencimiento_pro FROM usuarios WHERE id_usuario = $id_usuario_actual";
-        $res_plan_user = mysqli_query($conexion, $sql_plan_user);
-        if ($res_plan_user && mysqli_num_rows($res_plan_user) > 0) {
-            $datos_plan_user = mysqli_fetch_assoc($res_plan_user);
-            $plan_usuario_actual = $datos_plan_user['plan'];
-
-            if ($plan_usuario_actual === 'pro' && !empty($datos_plan_user['vencimiento_pro']) && $datos_plan_user['vencimiento_pro'] < date('Y-m-d')) {
-                mysqli_query($conexion, "UPDATE usuarios SET plan = 'gratis', vencimiento_pro = NULL WHERE id_usuario = $id_usuario_actual");
-                $plan_usuario_actual = 'gratis';
-            }
-            $_SESSION['plan'] = $plan_usuario_actual;
-        }
-    }
+    $plan_usuario_actual = $id_usuario_actual ? verificarPlanUsuario($conexion, $id_usuario_actual) : 'gratis';
 
     $sql_curso = "
         SELECT c.*, u.nombre, u.apellido 
@@ -54,6 +38,10 @@
     $costo_curso = (float)($curso['costo'] ?? 0);
     $costo_formateado = '$' . number_format($costo_curso, 2, ',', '.');
 
+    // Validación de fecha de inicio del curso vs fecha actual
+    $hoy_fecha = date('Y-m-d');
+    $curso_iniciado = ($hoy_fecha >= $curso['fecha_inicio']);
+
     // Solo se cuentan los alumnos con inscripción aceptada para el cupo
     $sql_cupo = "SELECT COUNT(id_inscripcion) as total_alumnos FROM inscripciones WHERE id_curso = $id_curso AND estado = 'aceptada'";
     $res_cupo = mysqli_query($conexion, $sql_cupo);
@@ -71,6 +59,10 @@
             }
         }
     }
+
+    // Permisos del foro condicionados a que el curso ya haya comenzado (fecha actual >= fecha_inicio)
+    $puede_crear_pregunta = (!$es_creador && $esta_inscripto && (int)$curso['activo'] === 1 && $curso_iniciado);
+    $puede_participar_foro = ($es_creador || ($esta_inscripto && (int)$curso['activo'] === 1));
 
     // =========================================================
     // LÓGICA DE GESTIÓN DE MATERIALES SEGÚN PLAN DEL CREADOR
@@ -165,8 +157,8 @@
     // LÓGICA DEL FORO DE DUDAS Y DISPARO DE NOTIFICACIONES
     // =========================================================
 
-    // A. Publicar Nueva Pregunta (Notifica a todos los inscriptos aceptados y al docente)
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_pregunta' && ($esta_inscripto || $es_creador)) {
+    // A. Publicar Nueva Pregunta (Validando que el curso ya haya iniciado)
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_pregunta' && $puede_crear_pregunta) {
         $titulo_p = mysqli_real_escape_string($conexion, trim($_POST['titulo_pregunta']));
         $cuerpo_p = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_pregunta']));
         
@@ -174,7 +166,6 @@
             $sql_ins_p = "INSERT INTO foro_preguntas (id_curso, id_autor, titulo, cuerpo, estado) VALUES ($id_curso, $id_usuario_actual, '$titulo_p', '$cuerpo_p', 'abierta')";
             
             if (mysqli_query($conexion, $sql_ins_p)) {
-                $titulo_curso_esc = mysqli_real_escape_string($conexion, $curso['titulo']);
                 $titulo_notif = mysqli_real_escape_string($conexion, "Nueva pregunta en " . $curso['titulo']);
                 $msj_notif = mysqli_real_escape_string($conexion, "$nombre_usuario_actual ha iniciado una nueva duda en el foro: '$titulo_p'");
 
@@ -200,19 +191,34 @@
         }
     }
 
-    // B. Responder Pregunta (Notifica a los participantes del hilo)
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_respuesta' && ($esta_inscripto || $es_creador)) {
+    // B. Responder Pregunta (Impide responder 2 veces seguidas o en temas cerrados)
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_respuesta' && $puede_participar_foro) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $cuerpo_r = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_respuesta']));
         
         if (!empty($cuerpo_r) && $id_pregunta > 0) {
+            $sql_info_p = "SELECT titulo, estado FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
+            $res_info_p = mysqli_query($conexion, $sql_info_p);
+            $info_p = mysqli_fetch_assoc($res_info_p);
+
+            if (!$info_p || $info_p['estado'] === 'cerrada') {
+                header("Location: curso.php?id=$id_curso&foro=tema_cerrado#foro");
+                exit();
+            }
+
+            $sql_ultima_r = "SELECT id_autor FROM foro_respuestas WHERE id_pregunta = $id_pregunta ORDER BY fecha_creacion DESC, id_respuesta DESC LIMIT 1";
+            $res_ultima_r = mysqli_query($conexion, $sql_ultima_r);
+            if ($row_ultima_r = mysqli_fetch_assoc($res_ultima_r)) {
+                if ((int)$row_ultima_r['id_autor'] === $id_usuario_actual) {
+                    header("Location: curso.php?id=$id_curso&foro=doble_respuesta#foro");
+                    exit();
+                }
+            }
+
             $sql_ins_r = "INSERT INTO foro_respuestas (id_pregunta, id_autor, cuerpo, es_aceptada) VALUES ($id_pregunta, $id_usuario_actual, '$cuerpo_r', 0)";
             
             if (mysqli_query($conexion, $sql_ins_r)) {
-                $sql_info_p = "SELECT titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta";
-                $res_info_p = mysqli_query($conexion, $sql_info_p);
-                $info_p = mysqli_fetch_assoc($res_info_p);
-                $titulo_preg = $info_p ? $info_p['titulo'] : 'la pregunta';
+                $titulo_preg = $info_p['titulo'];
 
                 $titulo_notif = mysqli_real_escape_string($conexion, "Nueva respuesta en tu hilo");
                 $msj_notif = mysqli_real_escape_string($conexion, "$nombre_usuario_actual respondió a la consulta sobre '$titulo_preg'");
@@ -238,18 +244,44 @@
         }
     }
 
-    // C. Destacar / Marcar Respuesta Aceptada (Notifica al autor de la respuesta y participantes)
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'marcar_aceptada') {
+    // B2. Editar última respuesta propia
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'editar_respuesta' && $puede_participar_foro) {
+        $id_respuesta = (int)$_POST['id_respuesta'];
+        $id_pregunta = (int)$_POST['id_pregunta'];
+        $cuerpo_editado = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_respuesta']));
+
+        if (!empty($cuerpo_editado) && $id_respuesta > 0 && $id_pregunta > 0) {
+            $sql_chk_p = "SELECT estado FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
+            $res_chk_p = mysqli_query($conexion, $sql_chk_p);
+            $row_chk_p = mysqli_fetch_assoc($res_chk_p);
+
+            if ($row_chk_p && $row_chk_p['estado'] !== 'cerrada') {
+                $sql_ultima_r = "SELECT id_respuesta, id_autor FROM foro_respuestas WHERE id_pregunta = $id_pregunta ORDER BY fecha_creacion DESC, id_respuesta DESC LIMIT 1";
+                $res_ultima_r = mysqli_query($conexion, $sql_ultima_r);
+                $row_ultima_r = mysqli_fetch_assoc($res_ultima_r);
+
+                if ($row_ultima_r && (int)$row_ultima_r['id_respuesta'] === $id_respuesta && (int)$row_ultima_r['id_autor'] === $id_usuario_actual) {
+                    mysqli_query($conexion, "UPDATE foro_respuestas SET cuerpo = '$cuerpo_editado' WHERE id_respuesta = $id_respuesta");
+                    header("Location: curso.php?id=$id_curso&foro=editada_ok#foro");
+                    exit();
+                }
+            }
+        }
+    }
+
+    // C. Destacar / Marcar Respuesta Aceptada y Cerrar el Tema
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'marcar_aceptada' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $id_pregunta = (int)$_POST['id_pregunta'];
         
-        $sql_chk_p = "SELECT id_autor, titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
+        $sql_chk_p = "SELECT id_autor, titulo, estado FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
         $res_chk_p = mysqli_query($conexion, $sql_chk_p);
         
         if ($row_p = mysqli_fetch_assoc($res_chk_p)) {
-            if ($es_creador || $row_p['id_autor'] == $id_usuario_actual) {
+            if (($es_creador || $row_p['id_autor'] == $id_usuario_actual) && $row_p['estado'] !== 'cerrada') {
                 mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 0 WHERE id_pregunta = $id_pregunta");
-                mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 1 WHERE id_respuesta = $id_respuesta");
+                mysqli_query($conexion, "UPDATE foro_respuestas SET es_aceptada = 1 WHERE id_respuesta = $id_respuesta AND id_pregunta = $id_pregunta");
+                mysqli_query($conexion, "UPDATE foro_preguntas SET estado = 'cerrada' WHERE id_pregunta = $id_pregunta");
 
                 $sql_resp_autor = "SELECT id_autor FROM foro_respuestas WHERE id_respuesta = $id_respuesta";
                 $res_resp_autor = mysqli_query($conexion, $sql_resp_autor);
@@ -260,7 +292,7 @@
 
                 if ($id_autor_respuesta > 0 && $id_autor_respuesta != $id_usuario_actual) {
                     $titulo_dest = mysqli_real_escape_string($conexion, "¡Tu respuesta fue destacada!");
-                    $msj_dest = mysqli_real_escape_string($conexion, "$nombre_usuario_actual ha marcado tu respuesta como aceptada en '$titulo_preg'");
+                    $msj_dest = mysqli_real_escape_string($conexion, "$nombre_usuario_actual ha marcado tu respuesta como aceptada en '$titulo_preg', cerrando el tema.");
                     mysqli_query($conexion, "
                         INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
                         VALUES ($id_autor_respuesta, '$titulo_dest', '$msj_dest', 'foro_destacada', 0, NOW())
@@ -274,8 +306,8 @@
                 ";
                 $res_part_cerrar = mysqli_query($conexion, $sql_part_cerrar);
                 
-                $titulo_cerrar = mysqli_real_escape_string($conexion, "Pregunta resuelta en el foro");
-                $msj_cerrar = mysqli_real_escape_string($conexion, "Se ha marcado una respuesta como aceptada en la consulta '$titulo_preg'");
+                $titulo_cerrar = mysqli_real_escape_string($conexion, "Tema cerrado en el foro");
+                $msj_cerrar = mysqli_real_escape_string($conexion, "Se ha marcado una respuesta como aceptada en la consulta '$titulo_preg' y el tema fue cerrado.");
 
                 while ($p_c = mysqli_fetch_assoc($res_part_cerrar)) {
                     $id_dest = (int)$p_c['id_destinatario'];
@@ -291,8 +323,8 @@
         }
     }
 
-    // D. Eliminar Pregunta (Notifica al autor de la consulta si la eliminó el docente)
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_pregunta') {
+    // D. Eliminar Pregunta
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_pregunta' && $puede_participar_foro) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $sql_chk_p = "SELECT id_autor, titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
         $res_chk_p = mysqli_query($conexion, $sql_chk_p);
@@ -321,12 +353,17 @@
     }
 
     // E. Eliminar Respuesta
-    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_respuesta') {
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_respuesta' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
-        $sql_chk_r = "SELECT id_autor FROM foro_respuestas WHERE id_respuesta = $id_respuesta";
+        $sql_chk_r = "
+            SELECT fr.id_autor, fp.estado 
+            FROM foro_respuestas fr
+            INNER JOIN foro_preguntas fp ON fr.id_pregunta = fp.id_pregunta
+            WHERE fr.id_respuesta = $id_respuesta AND fp.id_curso = $id_curso
+        ";
         $res_chk_r = mysqli_query($conexion, $sql_chk_r);
         if ($row_r = mysqli_fetch_assoc($res_chk_r)) {
-            if ($es_creador || $row_r['id_autor'] == $id_usuario_actual) {
+            if ($row_r['estado'] !== 'cerrada' && ($es_creador || $row_r['id_autor'] == $id_usuario_actual)) {
                 mysqli_query($conexion, "DELETE FROM foro_respuestas WHERE id_respuesta = $id_respuesta");
                 header("Location: curso.php?id=$id_curso&foro=respuesta_del_ok#foro");
                 exit();
@@ -342,6 +379,7 @@
     $sql_peso_mat = "SELECT COALESCE(SUM(tamano_bytes), 0) as peso_total FROM materiales WHERE id_curso = $id_curso";
     $peso_total_materiales = (int)mysqli_fetch_assoc(mysqli_query($conexion, $sql_peso_mat))['peso_total'];
     $limite_materiales_gratis_alcanzado = ($plan_usuario_actual === 'gratis' && ($total_materiales >= 5 || $peso_total_materiales >= 10485760));
+    $excede_limite_gratis_previo = ($plan_usuario_actual === 'gratis' && ($total_materiales > 5 || $peso_total_materiales > 10485760));
 
     $sql_preguntas = "
         SELECT fp.*, u.nombre, u.apellido 
@@ -420,6 +458,25 @@
             <?php endif; ?>
         <?php endif; ?>
 
+        <?php if(isset($_GET['foro'])): ?>
+            <?php if($_GET['foro'] == 'doble_respuesta'): ?>
+                <div class="alert alert-warning alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>No puedes responder dos veces seguidas en la misma pregunta. Edita tu última respuesta o espera a que otro usuario participe.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif($_GET['foro'] == 'tema_cerrado'): ?>
+                <div class="alert alert-secondary alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-lock-fill me-2"></i>Este tema ya fue marcado como resuelto y cerrado; no admite nuevas respuestas ni ediciones.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif($_GET['foro'] == 'editada_ok'): ?>
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i>Tu última respuesta fue actualizada correctamente.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+
         <!-- Banner del Curso -->
         <div class="curso-header-banner <?php echo $clase_gradiente_banner; ?> mb-5 rounded-4 shadow-sm p-4 p-md-5" <?php echo $bg_banner; ?>>
             <div class="d-flex flex-column justify-content-center h-100">
@@ -480,17 +537,36 @@
                 <section id="foro">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="fw-bold mb-0">Foro de Dudas (<?php echo $total_preguntas; ?>)</h4>
-                        <?php if($esta_inscripto || $es_creador): ?>
+                        <?php if($puede_crear_pregunta): ?>
                             <button class="btn fw-medium text-white shadow-sm" style="background-color: var(--PRIMARY);" data-bs-toggle="modal" data-bs-target="#modalNuevaPregunta">
                                 <i class="bi bi-chat-left-text me-2"></i>Iniciar Pregunta
                             </button>
                         <?php endif; ?>
                     </div>
 
+                    <?php if($esta_inscripto && !$curso_iniciado): ?>
+                        <div class="alert alert-info border-0 shadow-sm mb-4 rounded-3">
+                            <i class="bi bi-calendar-event-fill me-2"></i>El foro de dudas estará disponible para iniciar preguntas a partir de la fecha de inicio del curso (<?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?>).
+                        </div>
+                    <?php elseif($esta_inscripto && (int)$curso['activo'] === 0): ?>
+                        <div class="alert alert-secondary border-0 shadow-sm mb-4 rounded-3">
+                            <i class="bi bi-pause-circle-fill me-2"></i>Este curso se encuentra actualmente pausado o en borrador. Conservas acceso al material ya publicado, pero la participación en el foro está temporalmente deshabilitada.
+                        </div>
+                    <?php endif; ?>
+
                     <?php if($total_preguntas > 0): ?>
                         <?php while($pregunta = mysqli_fetch_assoc($resultado_preguntas)): ?>
                             <?php 
-                                $id_preg = $pregunta['id_pregunta'];
+                                $id_preg = (int)$pregunta['id_pregunta'];
+                                $tema_cerrado = ($pregunta['estado'] === 'cerrada');
+
+                                $sql_ultima = "SELECT id_respuesta, id_autor FROM foro_respuestas WHERE id_pregunta = $id_preg ORDER BY fecha_creacion DESC, id_respuesta DESC LIMIT 1";
+                                $res_ultima = mysqli_query($conexion, $sql_ultima);
+                                $ultima_resp = mysqli_fetch_assoc($res_ultima);
+                                $id_ultima_respuesta = $ultima_resp ? (int)$ultima_resp['id_respuesta'] : 0;
+                                $id_ultimo_autor = $ultima_resp ? (int)$ultima_resp['id_autor'] : 0;
+                                $es_doble_respuesta = ($id_usuario_actual && $id_ultimo_autor === $id_usuario_actual);
+
                                 $sql_respuestas = "
                                     SELECT fr.*, u.nombre, u.apellido 
                                     FROM foro_respuestas fr
@@ -506,14 +582,19 @@
                                     
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <div>
-                                            <h5 class="fw-bold text-dark mb-1"><?php echo htmlspecialchars($pregunta['titulo']); ?></h5>
+                                            <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                                                <h5 class="fw-bold text-dark mb-0"><?php echo htmlspecialchars($pregunta['titulo']); ?></h5>
+                                                <?php if($tema_cerrado): ?>
+                                                    <span class="badge bg-secondary"><i class="bi bi-lock-fill me-1"></i>Tema Cerrado</span>
+                                                <?php endif; ?>
+                                            </div>
                                             <small class="text-muted">
                                                 Por <span class="fw-medium text-dark"><?php echo htmlspecialchars($pregunta['nombre'] . ' ' . $pregunta['apellido']); ?></span> 
                                                 • <?php echo date("d/m/Y H:i", strtotime($pregunta['fecha_creacion'])); ?>
                                             </small>
                                         </div>
 
-                                        <?php if($es_creador || $pregunta['id_autor'] == $id_usuario_actual): ?>
+                                        <?php if($puede_participar_foro && ($es_creador || $pregunta['id_autor'] == $id_usuario_actual)): ?>
                                             <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" onsubmit="return confirm('¿Eliminar esta pregunta y todas sus respuestas?');">
                                                 <input type="hidden" name="accion_foro" value="eliminar_pregunta">
                                                 <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
@@ -526,26 +607,36 @@
 
                                     <p class="text-secondary mb-3" style="white-space: pre-wrap;"><?php echo htmlspecialchars($pregunta['cuerpo']); ?></p>
 
-                                    <?php if($esta_inscripto || $es_creador): ?>
-                                        <div class="mb-3">
-                                            <button class="btn btn-sm btn-outline-secondary border-0 px-0" type="button" data-bs-toggle="collapse" data-bs-target="#responderCollapse<?php echo $id_preg; ?>">
-                                                <i class="bi bi-reply-fill me-1"></i>Responder
-                                            </button>
-                                        </div>
+                                    <?php if($puede_participar_foro && !$tema_cerrado): ?>
+                                        <?php if($es_doble_respuesta): ?>
+                                            <div class="alert alert-light border small text-muted py-2 px-3 mb-3">
+                                                <i class="bi bi-info-circle me-1"></i>Tu respuesta es la más reciente en este hilo. Puedes <strong>editarla</strong> abajo o esperar a que otro usuario responda antes de publicar una nueva.
+                                            </div>
+                                        <?php else: ?>
+                                            <div class="mb-3">
+                                                <button class="btn btn-sm btn-outline-secondary border-0 px-0" type="button" data-bs-toggle="collapse" data-bs-target="#responderCollapse<?php echo $id_preg; ?>">
+                                                    <i class="bi bi-reply-fill me-1"></i>Responder
+                                                </button>
+                                            </div>
 
-                                        <div class="collapse mb-3" id="responderCollapse<?php echo $id_preg; ?>">
-                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="bg-light p-3 rounded-3 border">
-                                                <input type="hidden" name="accion_foro" value="crear_respuesta">
-                                                <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
-                                                <textarea name="cuerpo_respuesta" class="form-control custom-input mb-2" rows="2" placeholder="Escribe tu respuesta..." required></textarea>
-                                                <button type="submit" class="btn btn-purple btn-sm fw-medium">Publicar Respuesta</button>
-                                            </form>
-                                        </div>
+                                            <div class="collapse mb-3" id="responderCollapse<?php echo $id_preg; ?>">
+                                                <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="bg-light p-3 rounded-3 border">
+                                                    <input type="hidden" name="accion_foro" value="crear_respuesta">
+                                                    <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
+                                                    <textarea name="cuerpo_respuesta" class="form-control custom-input mb-2" rows="2" placeholder="Escribe tu respuesta..." required></textarea>
+                                                    <button type="submit" class="btn btn-purple btn-sm fw-medium">Publicar Respuesta</button>
+                                                </form>
+                                            </div>
+                                        <?php endif; ?>
                                     <?php endif; ?>
 
                                     <?php if(mysqli_num_rows($res_respuestas) > 0): ?>
                                         <div class="mt-3 pt-3 border-top">
                                             <?php while($resp = mysqli_fetch_assoc($res_respuestas)): ?>
+                                                <?php 
+                                                    $id_resp_actual = (int)$resp['id_respuesta'];
+                                                    $puede_editar_esta_resp = ($puede_participar_foro && !$tema_cerrado && $id_resp_actual === $id_ultima_respuesta && (int)$resp['id_autor'] === $id_usuario_actual);
+                                                ?>
                                                 <div class="p-3 mb-2 rounded-3 <?php echo ($resp['es_aceptada'] == 1) ? 'bg-light' : 'bg-body-tertiary'; ?>" style="<?php echo ($resp['es_aceptada'] == 1) ? 'border-left: 4px solid var(--PRIMARY);' : ''; ?>">
                                                     <div class="d-flex justify-content-between align-items-center mb-2">
                                                         <div>
@@ -559,11 +650,26 @@
 
                                                     <p class="text-secondary mb-2" style="white-space: pre-wrap;"><?php echo htmlspecialchars($resp['cuerpo']); ?></p>
 
-                                                    <div class="d-flex gap-2">
-                                                        <?php if(($es_creador || $pregunta['id_autor'] == $id_usuario_actual) && $resp['es_aceptada'] == 0): ?>
-                                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline">
+                                                    <?php if($puede_editar_esta_resp): ?>
+                                                        <div class="collapse mb-2" id="editarRespCollapse<?php echo $id_resp_actual; ?>">
+                                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="bg-white p-3 rounded-3 border">
+                                                                <input type="hidden" name="accion_foro" value="editar_respuesta">
+                                                                <input type="hidden" name="id_respuesta" value="<?php echo $id_resp_actual; ?>">
+                                                                <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
+                                                                <textarea name="cuerpo_respuesta" class="form-control custom-input mb-2" rows="2" required><?php echo htmlspecialchars($resp['cuerpo']); ?></textarea>
+                                                                <div class="d-flex gap-2">
+                                                                    <button type="submit" class="btn btn-purple btn-sm fw-medium">Guardar Edición</button>
+                                                                    <button type="button" class="btn btn-light btn-sm border" data-bs-toggle="collapse" data-bs-target="#editarRespCollapse<?php echo $id_resp_actual; ?>">Cancelar</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    <?php endif; ?>
+
+                                                    <div class="d-flex gap-3 align-items-center">
+                                                        <?php if($puede_participar_foro && !$tema_cerrado && ($es_creador || $pregunta['id_autor'] == $id_usuario_actual) && $resp['es_aceptada'] == 0): ?>
+                                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Marcar esta respuesta como aceptada y cerrar el tema?');">
                                                                 <input type="hidden" name="accion_foro" value="marcar_aceptada">
-                                                                <input type="hidden" name="id_respuesta" value="<?php echo $resp['id_respuesta']; ?>">
+                                                                <input type="hidden" name="id_respuesta" value="<?php echo $id_resp_actual; ?>">
                                                                 <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
                                                                 <button type="submit" class="btn btn-sm btn-outline-success border-0 px-0">
                                                                     <i class="bi bi-check-circle-fill me-1"></i>Destacar Respuesta
@@ -571,10 +677,16 @@
                                                             </form>
                                                         <?php endif; ?>
 
-                                                        <?php if($es_creador || $resp['id_autor'] == $id_usuario_actual): ?>
+                                                        <?php if($puede_editar_esta_resp): ?>
+                                                            <button type="button" class="btn btn-sm btn-outline-primary border-0 px-0" data-bs-toggle="collapse" data-bs-target="#editarRespCollapse<?php echo $id_resp_actual; ?>">
+                                                                <i class="bi bi-pencil-square me-1"></i>Editar Respuesta
+                                                            </button>
+                                                        <?php endif; ?>
+
+                                                        <?php if($puede_participar_foro && !$tema_cerrado && ($es_creador || $resp['id_autor'] == $id_usuario_actual)): ?>
                                                             <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline ms-auto" onsubmit="return confirm('¿Eliminar respuesta?');">
                                                                 <input type="hidden" name="accion_foro" value="eliminar_respuesta">
-                                                                <input type="hidden" name="id_respuesta" value="<?php echo $resp['id_respuesta']; ?>">
+                                                                <input type="hidden" name="id_respuesta" value="<?php echo $id_resp_actual; ?>">
                                                                 <button type="submit" class="btn btn-sm btn-outline-danger border-0">
                                                                     <i class="bi bi-trash-fill"></i>
                                                                 </button>
@@ -593,7 +705,7 @@
                         <div class="card border-0 shadow-sm mb-4">
                             <div class="card-body p-4 text-center text-muted">
                                 <i class="bi bi-chat-dots display-4 mb-2 d-block opacity-50"></i>
-                                Aún no hay preguntas formuladas en este curso. ¡Haz la primera!
+                                Aún no hay preguntas formuladas en este curso.<?php echo $puede_crear_pregunta ? ' ¡Haz la primera!' : ''; ?>
                             </div>
                         </div>
                     <?php endif; ?>
@@ -745,6 +857,11 @@
                             <div class="form-text mt-2" style="font-size: 0.75rem;">
                                 Plan Gratuito: <?php echo $total_materiales; ?>/5 archivos • <?php echo formatearBytes($peso_total_materiales); ?> / 10 MB total (máx. 5 MB/archivo).
                             </div>
+                            <?php if($excede_limite_gratis_previo): ?>
+                                <div class="form-text text-warning fw-medium mt-1" style="font-size: 0.73rem;">
+                                    Conservas los archivos subidos durante tu Plan Pro, pero debes liberar espacio o renovar Pro para subir nuevos.
+                                </div>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                     <?php endif; ?>
@@ -754,7 +871,7 @@
         </div>
     </main>
 
-    <?php if($esta_inscripto || $es_creador): ?>
+    <?php if($puede_crear_pregunta): ?>
     <div class="modal fade" id="modalNuevaPregunta" tabindex="-1" aria-labelledby="modalNuevaPreguntaLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow rounded-4">

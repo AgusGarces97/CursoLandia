@@ -15,21 +15,8 @@ if (!isset($_SESSION['id_usuario'])) {
 $id_creador = (int)$_SESSION['id_usuario'];
 $mensaje = '';
 
-// Sincronizamos el plan real desde la BD antes de validar o renderizar
-$sql_plan = "SELECT plan, vencimiento_pro FROM usuarios WHERE id_usuario = $id_creador";
-$res_plan = mysqli_query($conexion, $sql_plan);
-if ($res_plan && mysqli_num_rows($res_plan) > 0) {
-    $datos_plan = mysqli_fetch_assoc($res_plan);
-    $tipo_usuario = $datos_plan['plan'];
-
-    if ($tipo_usuario === 'pro' && !empty($datos_plan['vencimiento_pro']) && $datos_plan['vencimiento_pro'] < date('Y-m-d')) {
-        mysqli_query($conexion, "UPDATE usuarios SET plan = 'gratis', vencimiento_pro = NULL WHERE id_usuario = $id_creador");
-        $tipo_usuario = 'gratis';
-    }
-    $_SESSION['plan'] = $tipo_usuario;
-} else {
-    $tipo_usuario = $_SESSION['plan'] ?? 'gratis';
-}
+// Sincronizamos el plan real desde la BD (y degradamos cursos excedentes si venció el Plan Pro)
+$tipo_usuario = verificarPlanUsuario($conexion, $id_creador);
 
 // Verificamos cuántos cursos activos o programados tiene actualmente el usuario
 $sql_cantCursos_prev = "SELECT COUNT(*) as total_activos FROM cursos WHERE id_creador = $id_creador AND (activo = 1 OR programado = 1)";
@@ -194,7 +181,6 @@ if (isset($_POST['botonCrearCurso'])) {
                 header("Location: ../index.php");
                 exit();
             } else {
-                // Si falló el INSERT y se había subido imagen, la borramos para no dejar archivos huérfanos
                 if ($imagen_nombre && file_exists('../uploads/cursos/' . $imagen_nombre)) {
                     unlink('../uploads/cursos/' . $imagen_nombre);
                 }
@@ -204,9 +190,15 @@ if (isset($_POST['botonCrearCurso'])) {
     }
 }
 
-// Consultamos el catálogo de etiquetas para las sugerencias
+// Consultamos todas las etiquetas de la base de datos para pasarlas al modal
 $sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
 $res_todas_etiquetas = mysqli_query($conexion, $sql_todas_etiquetas);
+$todas_etiquetas_arr = [];
+if ($res_todas_etiquetas) {
+    while($tag = mysqli_fetch_assoc($res_todas_etiquetas)) {
+        $todas_etiquetas_arr[] = $tag['nombre'];
+    }
+}
 
 $titulo_pagina = 'Nuevo Curso - Cursolandia';
 $ruta = '../'; 
@@ -252,30 +244,17 @@ require_once 'header.php';
                                         <div class="form-text">Máximo 1000 caracteres.</div>
                                     </div>
 
-                                    <!-- Buscador y Selección de Etiquetas -->
+                                    <!-- Selector de Etiquetas mediante Modal -->
                                     <div class="mb-3">
-                                        <label for="buscadorEtiquetas" class="form-label fw-medium text-dark">Etiquetas (Opcional)</label>
-                                        <input type="text" class="form-control custom-input mb-2" id="buscadorEtiquetas" list="listaSugerencias" placeholder="Añadir etiquetas (ej: #Programación, #PHP)..." autocomplete="off">
-                                        <datalist id="listaSugerencias">
-                                            <?php while($tag = mysqli_fetch_assoc($res_todas_etiquetas)): ?>
-                                                <option value="<?php echo htmlspecialchars($tag['nombre'], ENT_QUOTES, 'UTF-8'); ?>"></option>
-                                            <?php endwhile; ?>
-                                        </datalist>
+                                        <label class="form-label fw-medium text-dark">Etiquetas (Opcional)</label>
+                                        <div class="mb-2">
+                                            <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
+                                                <i class="bi bi-tags-fill me-2"></i>Seleccionar Etiquetas de la Base de Datos
+                                            </button>
+                                        </div>
 
                                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap gap-2" style="min-height: 80px;">
-                                            <?php 
-                                            $etiquetas_mostradas = [];
-                                            foreach ($etiquetas_val as $tag_item): 
-                                                $tag_limpia = ltrim(trim($tag_item), '#');
-                                                if ($tag_limpia === '' || in_array(mb_strtolower($tag_limpia, 'UTF-8'), $etiquetas_mostradas)) continue;
-                                                $etiquetas_mostradas[] = mb_strtolower($tag_limpia, 'UTF-8');
-                                            ?>
-                                                <span class="badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta">
-                                                    #<?php echo htmlspecialchars($tag_limpia, ENT_QUOTES, 'UTF-8'); ?>
-                                                    <input type="hidden" name="etiquetas[]" value="<?php echo htmlspecialchars($tag_limpia, ENT_QUOTES, 'UTF-8'); ?>">
-                                                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
-                                                </span>
-                                            <?php endforeach; ?>
+                                            <!-- Se rellena dinámicamente con JS según las casillas marcadas -->
                                         </div>
                                     </div>
                                 </div>
@@ -361,7 +340,47 @@ require_once 'header.php';
         </div>
     </main>
 
-    <!-- JS de interacción de Etiquetas y Precio -->
+    <!-- Modal de Selección de Etiquetas -->
+    <div class="modal fade" id="modalEtiquetas" tabindex="-1" aria-labelledby="modalEtiquetasLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-dark" id="modalEtiquetasLabel">
+                        <i class="bi bi-tags color-logo me-2"></i>Seleccionar Etiquetas
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que apliquen al curso:</p>
+                    <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
+                        <?php if (count($todas_etiquetas_arr) > 0): ?>
+                            <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
+                                $is_checked = in_array($nombre_tag, $etiquetas_val) ? 'checked' : '';
+                            ?>
+                                <div class="col-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" name="etiquetas[]" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
+                                        <label class="form-check-label text-dark" for="tag_<?php echo md5($nombre_tag); ?>">
+                                            #<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>
+                                        </label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="col-12 text-center text-muted py-3">
+                                No hay etiquetas registradas en la base de datos.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-purple fw-bold px-4" data-bs-dismiss="modal">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS de interacción de Precio, Modal y Sincronización de Etiquetas -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const selectTipoCosto = document.getElementById('tipo_costo');
@@ -378,52 +397,53 @@ require_once 'header.php';
                 }
             }
 
-            selectTipoCosto.addEventListener('change', actualizarVisibilidadPrecio);
-            actualizarVisibilidadPrecio();
+            if (selectTipoCosto) {
+                selectTipoCosto.addEventListener('change', actualizarVisibilidadPrecio);
+                actualizarVisibilidadPrecio();
+            }
 
-            const inputEtiqueta = document.getElementById('buscadorEtiquetas');
-            const contenedor = document.getElementById('contenedorEtiquetas');
+            // Sincronización de Etiquetas (Checkboxes del Modal <-> Contenedor de Badges)
+            const checkboxesEtiquetas = document.querySelectorAll('.checkbox-etiqueta');
+            const contenedorEtiquetas = document.getElementById('contenedorEtiquetas');
 
-            function agregarEtiqueta(nombre) {
-                let textoLimpio = nombre.trim().replace(/^#+/, '');
-                if (textoLimpio === '') return;
+            function actualizarBadges() {
+                contenedorEtiquetas.innerHTML = '';
+                const seleccionadas = Array.from(checkboxesEtiquetas).filter(cb => cb.checked);
 
-                const existentes = Array.from(contenedor.querySelectorAll('input[name="etiquetas[]"]'))
-                    .map(inp => inp.value.toLowerCase());
-
-                if (existentes.includes(textoLimpio.toLowerCase())) {
-                    inputEtiqueta.value = '';
+                if (seleccionadas.length === 0) {
+                    contenedorEtiquetas.innerHTML = '<span class="text-muted small fst-italic">Ninguna etiqueta seleccionada.</span>';
                     return;
                 }
 
-                const badge = document.createElement('span');
-                badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
-                badge.innerHTML = `
-                    #${textoLimpio}
-                    <input type="hidden" name="etiquetas[]" value="${textoLimpio}">
-                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
-                `;
-
-                contenedor.appendChild(badge);
-                inputEtiqueta.value = '';
+                seleccionadas.forEach(cb => {
+                    const tagName = cb.value;
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
+                    badge.innerHTML = `
+                        #${tagName}
+                        <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover" data-value="${tagName}"></button>
+                    `;
+                    contenedorEtiquetas.appendChild(badge);
+                });
             }
 
-            inputEtiqueta.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    agregarEtiqueta(this.value);
-                }
+            checkboxesEtiquetas.forEach(cb => {
+                cb.addEventListener('change', actualizarBadges);
             });
 
-            inputEtiqueta.addEventListener('change', function() {
-                agregarEtiqueta(this.value);
-            });
-
-            contenedor.addEventListener('click', function(e) {
+            contenedorEtiquetas.addEventListener('click', function(e) {
                 if (e.target.classList.contains('btn-remover-etiqueta')) {
-                    e.target.closest('.item-etiqueta').remove();
+                    const tagName = e.target.getAttribute('data-value');
+                    const cb = Array.from(checkboxesEtiquetas).find(item => item.value === tagName);
+                    if (cb) {
+                        cb.checked = false;
+                        actualizarBadges();
+                    }
                 }
             });
+
+            // Inicializar al cargar la página (por si hay recarga con valores previos en POST)
+            actualizarBadges();
         });
     </script>
 
