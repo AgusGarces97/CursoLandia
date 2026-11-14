@@ -368,8 +368,7 @@ require_once 'header.php';
                                         <label class="form-label fw-medium text-dark">Etiquetas (Opcional)</label>
                                         <div class="mb-2">
                                             <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
-                                                <i class="bi bi-tags-fill me-2"></i>Seleccionar Etiquetas de la Base de Datos
-                                            </button>
+                                                <i class="bi bi-tags-fill me-2"></i>Seleccionar Etiquetas
                                         </div>
 
                                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap gap-2" style="min-height: 80px;">

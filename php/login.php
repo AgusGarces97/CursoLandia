@@ -22,22 +22,22 @@ if(isset($_POST['botonLogin'])){
     if(mysqli_num_rows($resultado) > 0){
         $usuario = mysqli_fetch_array($resultado);
 
-        if($passwordUsuario === $usuario['password']){
-        $_SESSION['id_usuario'] = $usuario['id_usuario'];
-        $_SESSION['nombre'] = $usuario['nombre'];
-        $_SESSION['apellido'] = $usuario['apellido'];
-        $_SESSION['rol'] = $usuario['rol'];
-        $_SESSION['plan'] = $usuario['plan'];
+        // Verificamos la contraseña en texto plano frente al hash de la base de datos
+        if(password_verify($passwordUsuario, $usuario['password'])){
+            $_SESSION['id_usuario'] = $usuario['id_usuario'];
+            $_SESSION['nombre'] = $usuario['nombre'];
+            $_SESSION['apellido'] = $usuario['apellido'];
+            $_SESSION['rol'] = $usuario['rol'];
+            $_SESSION['plan'] = $usuario['plan'];
 
-        header('Location: ../index.php');
-        exit();
+            header('Location: ../index.php');
+            exit();
         }else{
             $mensaje = "La Contraseña es incorrecta";
         }
     }else{
         $mensaje = "No existe una cuenta con ese email";
     }
-
 
 }
 

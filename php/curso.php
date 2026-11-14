@@ -112,7 +112,6 @@
             }
         }
 
-        // Para usuarios Pro (o Gratuitos que pasaron las validaciones), se guarda el archivo
         $nombre_original = mysqli_real_escape_string($conexion, $_FILES['archivo_material']['name']);
         $extension = strtolower(pathinfo($nombre_original, PATHINFO_EXTENSION));
         
@@ -169,7 +168,6 @@
                 $titulo_notif = mysqli_real_escape_string($conexion, "Nueva pregunta en " . $curso['titulo']);
                 $msj_notif = mysqli_real_escape_string($conexion, "$nombre_usuario_actual ha iniciado una nueva duda en el foro: '$titulo_p'");
 
-                // Destinatarios: Alumnos inscriptos aceptados + Docente creador (Excluyendo al autor)
                 $sql_destinatarios = "
                     SELECT id_alumno AS id_destinatario FROM inscripciones WHERE id_curso = $id_curso AND id_alumno != $id_usuario_actual AND estado = 'aceptada'
                     UNION
@@ -191,7 +189,7 @@
         }
     }
 
-    // B. Responder Pregunta (Impide responder 2 veces seguidas o en temas cerrados)
+    // B. Responder Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_respuesta' && $puede_participar_foro) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $cuerpo_r = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_respuesta']));
@@ -269,7 +267,34 @@
         }
     }
 
-    // C. Destacar / Marcar Respuesta Aceptada y Cerrar el Tema
+    // C. Destacar Pregunta (Exclusivo para el Docente / Creador)
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'destacar_pregunta' && $es_creador) {
+        $id_pregunta = (int)$_POST['id_pregunta'];
+        
+        $sql_chk_p = "SELECT id_autor, titulo, es_destacada FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
+        $res_chk_p = mysqli_query($conexion, $sql_chk_p);
+        
+        if ($row_p = mysqli_fetch_assoc($res_chk_p)) {
+            $nuevo_estado_destacada = ($row_p['es_destacada'] == 1) ? 0 : 1;
+            mysqli_query($conexion, "UPDATE foro_preguntas SET es_destacada = $nuevo_estado_destacada WHERE id_pregunta = $id_pregunta");
+
+            // Notificar al autor de la pregunta si fue destacada
+            $id_autor_preg = (int)$row_p['id_autor'];
+            if ($nuevo_estado_destacada == 1 && $id_autor_preg != $id_usuario_actual) {
+                $titulo_notif = mysqli_real_escape_string($conexion, "¡Tu pregunta fue destacada!");
+                $msj_notif = mysqli_real_escape_string($conexion, "El docente destacó tu pregunta '" . $row_p['titulo'] . "' en el curso '" . $curso['titulo'] . "'");
+                mysqli_query($conexion, "
+                    INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                    VALUES ($id_autor_preg, '$titulo_notif', '$msj_notif', 'foro_destacada', 0, NOW())
+                ");
+            }
+
+            header("Location: curso.php?id=$id_curso&foro=pregunta_destacada_ok#foro");
+            exit();
+        }
+    }
+
+    // D. Destacar / Marcar Respuesta Aceptada y Cerrar el Tema
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'marcar_aceptada' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $id_pregunta = (int)$_POST['id_pregunta'];
@@ -299,31 +324,13 @@
                     ");
                 }
 
-                $sql_part_cerrar = "
-                    SELECT id_autor AS id_destinatario FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_autor NOT IN ($id_usuario_actual, $id_autor_respuesta)
-                    UNION
-                    SELECT id_autor AS id_destinatario FROM foro_respuestas WHERE id_pregunta = $id_pregunta AND id_autor NOT IN ($id_usuario_actual, $id_autor_respuesta)
-                ";
-                $res_part_cerrar = mysqli_query($conexion, $sql_part_cerrar);
-                
-                $titulo_cerrar = mysqli_real_escape_string($conexion, "Tema cerrado en el foro");
-                $msj_cerrar = mysqli_real_escape_string($conexion, "Se ha marcado una respuesta como aceptada en la consulta '$titulo_preg' y el tema fue cerrado.");
-
-                while ($p_c = mysqli_fetch_assoc($res_part_cerrar)) {
-                    $id_dest = (int)$p_c['id_destinatario'];
-                    mysqli_query($conexion, "
-                        INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
-                        VALUES ($id_dest, '$titulo_cerrar', '$msj_cerrar', 'foro_destacada', 0, NOW())
-                    ");
-                }
-
                 header("Location: curso.php?id=$id_curso&foro=destacada_ok#foro");
                 exit();
             }
         }
     }
 
-    // D. Eliminar Pregunta
+    // E. Eliminar Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_pregunta' && $puede_participar_foro) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $sql_chk_p = "SELECT id_autor, titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
@@ -352,7 +359,7 @@
         }
     }
 
-    // E. Eliminar Respuesta
+    // F. Eliminar Respuesta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_respuesta' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $sql_chk_r = "
@@ -371,7 +378,7 @@
         }
     }
 
-    // Consultas para renderizado
+    // Consultas para renderizado (Ordenamos primero las preguntas destacadas, luego por fecha)
     $sql_materiales = "SELECT * FROM materiales WHERE id_curso = $id_curso ORDER BY fecha_subida DESC";
     $resultado_materiales = mysqli_query($conexion, $sql_materiales);
     $total_materiales = mysqli_num_rows($resultado_materiales);
@@ -386,7 +393,7 @@
         FROM foro_preguntas fp
         INNER JOIN usuarios u ON fp.id_autor = u.id_usuario
         WHERE fp.id_curso = $id_curso
-        ORDER BY fp.fecha_creacion DESC
+        ORDER BY fp.es_destacada DESC, fp.fecha_creacion DESC
     ";
     $resultado_preguntas = mysqli_query($conexion, $sql_preguntas);
     $total_preguntas = mysqli_num_rows($resultado_preguntas);
@@ -410,7 +417,6 @@
         }
     }
 
-    // Configuración visual del banner (imagen subida o degradado por defecto)
     $tiene_imagen = (!empty($curso['imagen']) && file_exists('../uploads/cursos/' . $curso['imagen']));
     $clase_gradiente_banner = $tiene_imagen ? '' : 'curso-gradiente-' . (($curso['id_curso'] % 5) + 1);
     $bg_banner = $tiene_imagen
@@ -472,6 +478,11 @@
             <?php elseif($_GET['foro'] == 'editada_ok'): ?>
                 <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
                     <i class="bi bi-check-circle-fill me-2"></i>Tu última respuesta fue actualizada correctamente.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif($_GET['foro'] == 'pregunta_destacada_ok'): ?>
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-star-fill me-2"></i>Se ha actualizado el estado de destacado de la pregunta correctamente.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php endif; ?>
@@ -559,6 +570,7 @@
                             <?php 
                                 $id_preg = (int)$pregunta['id_pregunta'];
                                 $tema_cerrado = ($pregunta['estado'] === 'cerrada');
+                                $es_destacada = ((int)$pregunta['es_destacada'] === 1);
 
                                 $sql_ultima = "SELECT id_respuesta, id_autor FROM foro_respuestas WHERE id_pregunta = $id_preg ORDER BY fecha_creacion DESC, id_respuesta DESC LIMIT 1";
                                 $res_ultima = mysqli_query($conexion, $sql_ultima);
@@ -577,13 +589,16 @@
                                 $res_respuestas = mysqli_query($conexion, $sql_respuestas);
                             ?>
 
-                            <div class="card border-0 shadow-sm mb-4 rounded-4">
+                            <div class="card border-0 shadow-sm mb-4 rounded-4 <?php echo $es_destacada ? 'border border-warning' : ''; ?>" style="<?php echo $es_destacada ? 'border-left: 5px solid #ffc107 !important;' : ''; ?>">
                                 <div class="card-body p-4">
                                     
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <div>
                                             <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
                                                 <h5 class="fw-bold text-dark mb-0"><?php echo htmlspecialchars($pregunta['titulo']); ?></h5>
+                                                <?php if($es_destacada): ?>
+                                                    <span class="badge bg-warning text-dark"><i class="bi bi-star-fill me-1"></i>Pregunta Destacada</span>
+                                                <?php endif; ?>
                                                 <?php if($tema_cerrado): ?>
                                                     <span class="badge bg-secondary"><i class="bi bi-lock-fill me-1"></i>Tema Cerrado</span>
                                                 <?php endif; ?>
@@ -594,15 +609,28 @@
                                             </small>
                                         </div>
 
-                                        <?php if($puede_participar_foro && ($es_creador || $pregunta['id_autor'] == $id_usuario_actual)): ?>
-                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" onsubmit="return confirm('¿Eliminar esta pregunta y todas sus respuestas?');">
-                                                <input type="hidden" name="accion_foro" value="eliminar_pregunta">
-                                                <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0">
-                                                    <i class="bi bi-trash-fill"></i>
-                                                </button>
-                                            </form>
-                                        <?php endif; ?>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <!-- Botón para destacar pregunta (Solo para el docente creador) -->
+                                            <?php if($es_creador): ?>
+                                                <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline">
+                                                    <input type="hidden" name="accion_foro" value="destacar_pregunta">
+                                                    <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
+                                                    <button type="submit" class="btn btn-sm <?php echo $es_destacada ? 'btn-warning text-dark' : 'btn-outline-warning text-muted'; ?>" title="<?php echo $es_destacada ? 'Quitar destacado' : 'Destacar pregunta'; ?>">
+                                                        <i class="bi bi-star-fill"></i>
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
+
+                                            <?php if($puede_participar_foro && ($es_creador || $pregunta['id_autor'] == $id_usuario_actual)): ?>
+                                                <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar esta pregunta y todas sus respuestas?');">
+                                                    <input type="hidden" name="accion_foro" value="eliminar_pregunta">
+                                                    <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0" title="Eliminar pregunta">
+                                                        <i class="bi bi-trash-fill"></i>
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
+                                        </div>
                                     </div>
 
                                     <p class="text-secondary mb-3" style="white-space: pre-wrap;"><?php echo htmlspecialchars($pregunta['cuerpo']); ?></p>
@@ -728,7 +756,6 @@
                         <?php endif; ?>
 
                         <?php if(!$esta_inscripto): ?>
-                            <!-- Bloque destacado de valor / modalidad -->
                             <div class="p-3 mb-3 rounded-3 bg-light border">
                                 <span class="text-muted small d-block mb-1">Valor del curso</span>
                                 <?php if($curso['es_pago'] == 1): ?>
