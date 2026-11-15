@@ -65,6 +65,44 @@
     $puede_participar_foro = ($es_creador || ($esta_inscripto && (int)$curso['activo'] === 1));
 
     // =========================================================
+    // LÓGICA DE GESTIÓN DE COMUNICADOS (CONDICIONADA A FECHA DE INICIO)
+    // =========================================================
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_comunicado']) && $_POST['accion_comunicado'] === 'crear' && $es_creador && $curso_iniciado) {
+        $titulo_com = mysqli_real_escape_string($conexion, trim($_POST['titulo_comunicado']));
+        $cuerpo_com = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_comunicado']));
+
+        if (!empty($titulo_com) && !empty($cuerpo_com)) {
+            $sql_ins_com = "INSERT INTO comunicados_curso (id_curso, titulo, cuerpo, fecha_creacion) VALUES ($id_curso, '$titulo_com', '$cuerpo_com', NOW())";
+            if (mysqli_query($conexion, $sql_ins_com)) {
+                
+                // Notificar a todos los alumnos inscriptos aceptados
+                $titulo_notif = mysqli_real_escape_string($conexion, "Nuevo comunicado en " . $curso['titulo']);
+                $msj_notif = mysqli_real_escape_string($conexion, "El docente publicó un nuevo comunicado: '$titulo_com'");
+
+                $sql_alumnos_com = "SELECT id_alumno FROM inscripciones WHERE id_curso = $id_curso AND estado = 'aceptada'";
+                $res_alumnos_com = mysqli_query($conexion, $sql_alumnos_com);
+                while ($al = mysqli_fetch_assoc($res_alumnos_com)) {
+                    $id_dest = (int)$al['id_alumno'];
+                    mysqli_query($conexion, "
+                        INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                        VALUES ($id_dest, '$titulo_notif', '$msj_notif', 'comunicado', 0, NOW())
+                    ");
+                }
+
+                header("Location: curso.php?id=$id_curso&com=creado_ok#comunicados");
+                exit();
+            }
+        }
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_comunicado']) && $_POST['accion_comunicado'] === 'eliminar' && $es_creador) {
+        $id_comunicado = (int)$_POST['id_comunicado'];
+        mysqli_query($conexion, "DELETE FROM comunicados_curso WHERE id_comunicado = $id_comunicado AND id_curso = $id_curso");
+        header("Location: curso.php?id=$id_curso&com=eliminado_ok#comunicados");
+        exit();
+    }
+
+    // =========================================================
     // LÓGICA DE GESTIÓN DE MATERIALES SEGÚN PLAN DEL CREADOR
     // =========================================================
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_material']) && $_POST['accion_material'] === 'subir' && $es_creador) {
@@ -84,10 +122,9 @@
             exit();
         }
 
-        // REGLA DE NEGOCIO: Usuarios de plan gratuito limitados a 5 archivos, 5MB individual y 10MB total por curso
         if ($plan_usuario_actual === 'gratis') {
-            $limite_individual = 5242880;  // 5 MB en bytes (5 * 1024 * 1024)
-            $limite_peso_total = 10485760; // 10 MB en bytes (10 * 1024 * 1024)
+            $limite_individual = 5242880;  
+            $limite_peso_total = 10485760; 
 
             if ($tamano_nuevo > $limite_individual) {
                 header("Location: curso.php?id=$id_curso&mat=exceso_tamano");
@@ -156,7 +193,6 @@
     // LÓGICA DEL FORO DE DUDAS Y DISPARO DE NOTIFICACIONES
     // =========================================================
 
-    // A. Publicar Nueva Pregunta (Validando que el curso ya haya iniciado)
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_pregunta' && $puede_crear_pregunta) {
         $titulo_p = mysqli_real_escape_string($conexion, trim($_POST['titulo_pregunta']));
         $cuerpo_p = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_pregunta']));
@@ -189,7 +225,6 @@
         }
     }
 
-    // B. Responder Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_respuesta' && $puede_participar_foro) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $cuerpo_r = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_respuesta']));
@@ -242,7 +277,6 @@
         }
     }
 
-    // B2. Editar última respuesta propia
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'editar_respuesta' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $id_pregunta = (int)$_POST['id_pregunta'];
@@ -267,7 +301,6 @@
         }
     }
 
-    // C. Destacar Pregunta (Exclusivo para el Docente / Creador)
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'destacar_pregunta' && $es_creador) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         
@@ -278,7 +311,6 @@
             $nuevo_estado_destacada = ($row_p['es_destacada'] == 1) ? 0 : 1;
             mysqli_query($conexion, "UPDATE foro_preguntas SET es_destacada = $nuevo_estado_destacada WHERE id_pregunta = $id_pregunta");
 
-            // Notificar al autor de la pregunta si fue destacada
             $id_autor_preg = (int)$row_p['id_autor'];
             if ($nuevo_estado_destacada == 1 && $id_autor_preg != $id_usuario_actual) {
                 $titulo_notif = mysqli_real_escape_string($conexion, "¡Tu pregunta fue destacada!");
@@ -294,7 +326,6 @@
         }
     }
 
-    // D. Destacar / Marcar Respuesta Aceptada y Cerrar el Tema
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'marcar_aceptada' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $id_pregunta = (int)$_POST['id_pregunta'];
@@ -330,7 +361,6 @@
         }
     }
 
-    // E. Eliminar Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_pregunta' && $puede_participar_foro) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $sql_chk_p = "SELECT id_autor, titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
@@ -359,7 +389,6 @@
         }
     }
 
-    // F. Eliminar Respuesta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_respuesta' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $sql_chk_r = "
@@ -378,7 +407,7 @@
         }
     }
 
-    // Consultas para renderizado (Ordenamos primero las preguntas destacadas, luego por fecha)
+    // Consultas para renderizado
     $sql_materiales = "SELECT * FROM materiales WHERE id_curso = $id_curso ORDER BY fecha_subida DESC";
     $resultado_materiales = mysqli_query($conexion, $sql_materiales);
     $total_materiales = mysqli_num_rows($resultado_materiales);
@@ -387,6 +416,11 @@
     $peso_total_materiales = (int)mysqli_fetch_assoc(mysqli_query($conexion, $sql_peso_mat))['peso_total'];
     $limite_materiales_gratis_alcanzado = ($plan_usuario_actual === 'gratis' && ($total_materiales >= 5 || $peso_total_materiales >= 10485760));
     $excede_limite_gratis_previo = ($plan_usuario_actual === 'gratis' && ($total_materiales > 5 || $peso_total_materiales > 10485760));
+
+    // Consultar comunicados del curso
+    $sql_comunicados = "SELECT * FROM comunicados_curso WHERE id_curso = $id_curso ORDER BY fecha_creacion DESC";
+    $resultado_comunicados = mysqli_query($conexion, $sql_comunicados);
+    $total_comunicados = mysqli_num_rows($resultado_comunicados);
 
     $sql_preguntas = "
         SELECT fp.*, u.nombre, u.apellido 
@@ -464,10 +498,24 @@
             <?php endif; ?>
         <?php endif; ?>
 
+        <?php if(isset($_GET['com'])): ?>
+            <?php if($_GET['com'] == 'creado_ok'): ?>
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i>Comunicado publicado y notificado a los alumnos con éxito.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif($_GET['com'] == 'eliminado_ok'): ?>
+                <div class="alert alert-info alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-info-circle-fill me-2"></i>Comunicado eliminado correctamente.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
+
         <?php if(isset($_GET['foro'])): ?>
             <?php if($_GET['foro'] == 'doble_respuesta'): ?>
                 <div class="alert alert-warning alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>No puedes responder dos veces seguidas en la misma pregunta. Edita tu última respuesta o espera a que otro usuario participe.
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>No puedes responder deux veces seguidas en la misma pregunta. Edita tu última respuesta o espera a que otro usuario participe.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php elseif($_GET['foro'] == 'tema_cerrado'): ?>
@@ -545,6 +593,58 @@
                     </div>
                 </section>
 
+                <!-- SECCIÓN: COMUNICADOS DEL DOCENTE -->
+                <section id="comunicados" class="mb-5">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="fw-bold mb-0"><i class="bi bi-megaphone-fill text-primary me-2"></i>Comunicados del Docente (<?php echo $total_comunicados; ?>)</h4>
+                        <?php if($es_creador && $curso_iniciado): ?>
+                            <button class="btn fw-medium text-white shadow-sm btn-sm" style="background-color: var(--PRIMARY);" data-bs-toggle="modal" data-bs-target="#modalNuevoComunicado">
+                                <i class="bi bi-plus-lg me-1"></i>Nuevo Comunicado
+                            </button>
+                        <?php endif; ?>
+                    </div>
+
+                    <?php if($es_creador && !$curso_iniciado): ?>
+                        <div class="alert alert-info border-0 shadow-sm mb-4 rounded-3">
+                            <i class="bi bi-calendar-event-fill me-2"></i>Podrás publicar comunicados a partir de la fecha de inicio del curso (<?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?>).
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if($total_comunicados > 0): ?>
+                        <div class="d-flex flex-column gap-3">
+                            <?php while($com = mysqli_fetch_assoc($resultado_comunicados)): ?>
+                                <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-primary bg-white">
+                                    <div class="card-body p-4">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h5 class="fw-bold text-dark mb-0"><?php echo htmlspecialchars($com['titulo']); ?></h5>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <small class="text-muted"><i class="bi bi-clock me-1"></i><?php echo date("d/m/Y H:i", strtotime($com['fecha_creacion'])); ?></small>
+                                                <?php if($es_creador): ?>
+                                                    <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar este comunicado?');">
+                                                        <input type="hidden" name="accion_comunicado" value="eliminar">
+                                                        <input type="hidden" name="id_comunicado" value="<?php echo $com['id_comunicado']; ?>">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Eliminar comunicado">
+                                                            <i class="bi bi-trash-fill"></i>
+                                                        </button>
+                                                    </form>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        <p class="text-secondary mb-0" style="white-space: pre-wrap; line-height: 1.6;"><?php echo htmlspecialchars($com['cuerpo']); ?></p>
+                                    </div>
+                                </div>
+                            <?php endwhile; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="card border-0 shadow-sm bg-light rounded-4">
+                            <div class="card-body p-4 text-center text-muted">
+                                <i class="bi bi-bell-slash display-6 mb-2 d-block opacity-50"></i>
+                                Aún no hay comunicados publicados por el docente en este curso.
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                </section>
+
                 <section id="foro">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="fw-bold mb-0">Foro de Dudas (<?php echo $total_preguntas; ?>)</h4>
@@ -610,7 +710,6 @@
                                         </div>
 
                                         <div class="d-flex align-items-center gap-2">
-                                            <!-- Botón para destacar pregunta (Solo para el docente creador) -->
                                             <?php if($es_creador): ?>
                                                 <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline">
                                                     <input type="hidden" name="accion_foro" value="destacar_pregunta">
@@ -897,6 +996,40 @@
             </div>
         </div>
     </main>
+
+    <!-- MODAL NUEVO COMUNICADO -->
+    <?php if($es_creador && $curso_iniciado): ?>
+    <div class="modal fade" id="modalNuevoComunicado" tabindex="-1" aria-labelledby="modalNuevoComunicadoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-dark" id="modalNuevoComunicadoLabel">
+                        <i class="bi bi-megaphone color-logo me-2"></i>Publicar Comunicado
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST">
+                    <input type="hidden" name="accion_comunicado" value="crear">
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label for="titulo_comunicado" class="form-label fw-medium text-dark">Título del Comunicado</label>
+                            <input type="text" class="form-control custom-input" id="titulo_comunicado" name="titulo_comunicado" placeholder="Ej: Suspensión de clase / Aviso importante" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="cuerpo_comunicado" class="form-label fw-medium text-dark">Mensaje</label>
+                            <textarea class="form-control custom-input" id="cuerpo_comunicado" name="cuerpo_comunicado" rows="4" placeholder="Escribe el mensaje o aviso para los alumnos..." required></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-top p-3">
+                        <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-purple fw-bold px-4 text-white">Publicar y Notificar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <?php if($puede_crear_pregunta): ?>
     <div class="modal fade" id="modalNuevaPregunta" tabindex="-1" aria-labelledby="modalNuevaPreguntaLabel" aria-hidden="true">

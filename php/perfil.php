@@ -126,8 +126,8 @@
                 </div>
             <?php endif; ?>
 
-            <!-- Agregamos enctype="multipart/form-data" para permitir subida de archivos -->
-            <form action="editarPerfil.php" method="POST" enctype="multipart/form-data">
+            <!-- Agregamos id="formPerfil" y enctype="multipart/form-data" -->
+            <form action="editarPerfil.php" method="POST" enctype="multipart/form-data" id="formPerfil">
                 
                 <!-- Cabecera de la sección -->
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3 border-bottom pb-3">
@@ -192,7 +192,7 @@
                         </div>
                         
                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap align-content-start gap-2" style="min-height: 140px;">
-                            <!-- Se rellena dinámicamente con JS según las casillas marcadas -->
+                            <!-- Se rellena dinámicamente con JS y aloja los inputs hidden -->
                         </div>
                         <div class="form-text mt-2" style="font-size: 0.75rem;">
                             Haz clic en el botón superior para seleccionar tus temas de interés desde la base de datos.
@@ -224,7 +224,7 @@
                             ?>
                                 <div class="col-6">
                                     <div class="form-check">
-                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" name="etiquetas[]" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_user_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
+                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_user_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
                                         <label class="form-check-label text-dark" for="tag_user_<?php echo md5($nombre_tag); ?>">
                                             #<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>
                                         </label>
@@ -283,14 +283,18 @@
         </div>
     </div>
 
-    <!-- SCRIPT DE SINCRONIZACIÓN DE INTERESES CON EL MODAL -->
+    <!-- SCRIPT DE SINCRONIZACIÓN ROBUSTA DE INTERESES CON EL FORMULARIO -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const checkboxesEtiquetas = document.querySelectorAll('.checkbox-etiqueta');
             const contenedorEtiquetas = document.getElementById('contenedorEtiquetas');
+            const formPerfil = document.getElementById('formPerfil');
 
             function actualizarBadges() {
+                // Removemos inputs hidden anteriores para recrearlos limpios
+                formPerfil.querySelectorAll('input.input-etiqueta-hidden').forEach(el => el.remove());
                 contenedorEtiquetas.innerHTML = '';
+                
                 const seleccionadas = Array.from(checkboxesEtiquetas).filter(cb => cb.checked);
 
                 if (seleccionadas.length === 0) {
@@ -300,6 +304,16 @@
 
                 seleccionadas.forEach(cb => {
                     const tagName = cb.value;
+
+                    // Creamos el input hidden que viaja por POST en el form principal
+                    const inputHidden = document.createElement('input');
+                    inputHidden.type = 'hidden';
+                    inputHidden.name = 'etiquetas[]';
+                    inputHidden.value = tagName;
+                    inputHidden.className = 'input-etiqueta-hidden';
+                    formPerfil.appendChild(inputHidden);
+
+                    // Creamos el badge visual
                     const badge = document.createElement('span');
                     badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
                     badge.innerHTML = `

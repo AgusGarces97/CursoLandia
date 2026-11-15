@@ -237,6 +237,16 @@ CREATE TABLE notificaciones (
     CONSTRAINT chk_notificaciones_mensaje CHECK (CHAR_LENGTH(TRIM(mensaje)) > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS comunicados_curso (
+    id_comunicado INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    id_curso INT NOT NULL,
+    titulo VARCHAR(150) NOT NULL,
+    cuerpo TEXT NOT NULL,
+    fecha_creacion DATETIME NOT NULL,
+    KEY (id_curso),
+    CONSTRAINT fk_comunicados_curso FOREIGN KEY (id_curso) REFERENCES cursos(id_curso) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- --------------------------------------------------------
 -- INSERCIONES (datos de prueba)
 -- --------------------------------------------------------

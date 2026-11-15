@@ -103,6 +103,7 @@ if (isset($_POST['botonEditarCurso'])) {
     $fechaInicio_val = trim($_POST['fechaInicio'] ?? '');
     $fechaFin_val = trim($_POST['fechaFin'] ?? '');
     $activo_val = isset($_POST['estadoCurso']) ? 1 : 0;
+    $etiquetas_val = (isset($_POST['etiquetas']) && is_array($_POST['etiquetas'])) ? $_POST['etiquetas'] : [];
 
     $titulo_val = $titulo_raw;
     $descripcion_val = $descripcion_raw;
@@ -234,8 +235,8 @@ if (isset($_POST['botonEditarCurso'])) {
 
             // ACTUALIZACIÓN DE ETIQUETAS DEL CURSO
             mysqli_query($conexion, "DELETE FROM curso_etiquetas WHERE id_curso = $id_curso");
-            if (isset($_POST['etiquetas']) && is_array($_POST['etiquetas'])) {
-                foreach ($_POST['etiquetas'] as $nombreEtiqueta) {
+            if (!empty($etiquetas_val)) {
+                foreach ($etiquetas_val as $nombreEtiqueta) {
                     $nombreLimpio = mysqli_real_escape_string($conexion, trim(str_replace('#', '', $nombreEtiqueta)));
                     if (!empty($nombreLimpio)) {
                         $res_tag = mysqli_query($conexion, "SELECT id_etiqueta FROM etiquetas WHERE LOWER(nombre) = LOWER('$nombreLimpio')");
@@ -346,7 +347,7 @@ require_once 'header.php';
                     </div>
                     
                     <div class="card-body p-4 p-lg-5">
-                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" enctype="multipart/form-data">
+                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" enctype="multipart/form-data" id="formEditarCurso">
                             
                             <div class="row g-4">
                                 
@@ -367,12 +368,13 @@ require_once 'header.php';
                                     <div class="mb-3">
                                         <label class="form-label fw-medium text-dark">Etiquetas (Opcional)</label>
                                         <div class="mb-2">
-                                            <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
-                                                <i class="bi bi-tags-fill me-2"></i>Seleccionar Etiquetas
+                                            <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium d-flex align-items-center justify-content-center gap-2" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
+                                                <i class="bi bi-tags-fill"></i>Seleccionar Etiquetas
+                                            </button>
                                         </div>
 
                                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap gap-2" style="min-height: 80px;">
-                                            <!-- Se rellena dinámicamente con JS -->
+                                            <!-- Se rellena dinámicamente con JS y aloja los inputs hidden -->
                                         </div>
                                     </div>
                                 </div>
@@ -569,7 +571,7 @@ require_once 'header.php';
                             ?>
                                 <div class="col-6">
                                     <div class="form-check">
-                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" name="etiquetas[]" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_edit_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
+                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_edit_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
                                         <label class="form-check-label text-dark" for="tag_edit_<?php echo md5($nombre_tag); ?>">
                                             #<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>
                                         </label>
@@ -590,12 +592,13 @@ require_once 'header.php';
         </div>
     </div>
 
-    <!-- JS de interacción de Precio y Sincronización de Etiquetas con Modal -->
+    <!-- JS de interacción de Precio y Sincronización Robusta de Etiquetas con Modal -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const selectTipoCosto = document.getElementById('tipo_costo');
             const bloquePrecio = document.getElementById('bloquePrecio');
             const inputCostoMonto = document.getElementById('costo_monto');
+            const formEditarCurso = document.getElementById('formEditarCurso');
 
             function actualizarVisibilidadPrecio() {
                 if (selectTipoCosto.value === '1') {
@@ -612,12 +615,15 @@ require_once 'header.php';
                 actualizarVisibilidadPrecio();
             }
 
-            // Sincronización de Etiquetas (Checkboxes del Modal <-> Contenedor de Badges)
+            // Sincronización robusta de Etiquetas con inputs hidden inyectados en el formulario principal
             const checkboxesEtiquetas = document.querySelectorAll('.checkbox-etiqueta');
             const contenedorEtiquetas = document.getElementById('contenedorEtiquetas');
 
             function actualizarBadges() {
+                // Removemos inputs hidden anteriores de etiquetas para recrearlos limpios
+                formEditarCurso.querySelectorAll('input.input-etiqueta-hidden').forEach(el => el.remove());
                 contenedorEtiquetas.innerHTML = '';
+                
                 const seleccionadas = Array.from(checkboxesEtiquetas).filter(cb => cb.checked);
 
                 if (seleccionadas.length === 0) {
@@ -627,6 +633,16 @@ require_once 'header.php';
 
                 seleccionadas.forEach(cb => {
                     const tagName = cb.value;
+
+                    // Creamos el input hidden que viaja por POST en el form principal
+                    const inputHidden = document.createElement('input');
+                    inputHidden.type = 'hidden';
+                    inputHidden.name = 'etiquetas[]';
+                    inputHidden.value = tagName;
+                    inputHidden.className = 'input-etiqueta-hidden';
+                    formEditarCurso.appendChild(inputHidden);
+
+                    // Creamos el badge visual
                     const badge = document.createElement('span');
                     badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
                     badge.innerHTML = `
