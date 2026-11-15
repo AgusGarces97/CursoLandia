@@ -35,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['botonEnviarSolicitud']
 
     // Insertar solicitud en la base de datos
     $sql_insert = "
-        INSERT INTO solicitudes_pro (id_usuario, mensaje, comprobante, estado) 
+        INSERT INTO solicitudes_pro (id_usuario, mensaje, archivo_comprobante, estado) 
         VALUES ($idUsuario, '$mensaje', '$nombreArchivoGuardado', 'pendiente')
     ";
 

@@ -10,11 +10,47 @@
         exit();
     }
 
-    $idUsuario = $_SESSION['id_usuario'];
+    $idUsuario = (int)$_SESSION['id_usuario'];
+    $mensaje_feedback = '';
+
+    // LÓGICA PARA ELIMINAR UN CURSO PROPIO
+    if (isset($_POST['id_curso_a_borrar'])) {
+        $id_curso_borrar = (int)$_POST['id_curso_a_borrar'];
+
+        // Verificamos que el curso pertenezca al usuario logueado antes de borrar
+        $sql_verif = "SELECT id_curso, imagen FROM cursos WHERE id_curso = $id_curso_borrar AND id_creador = $idUsuario";
+        $res_verif = mysqli_query($conexion, $sql_verif);
+
+        if ($res_verif && mysqli_num_rows($res_verif) > 0) {
+            $curso_datos = mysqli_fetch_assoc($res_verif);
+            
+            // Borramos la imagen física de portada si existe
+            if (!empty($curso_datos['imagen']) && file_exists('../uploads/cursos/' . $curso_datos['imagen'])) {
+                unlink('../uploads/cursos/' . $curso_datos['imagen']);
+            }
+
+            // Eliminamos relaciones dependientes (etiquetas e inscripciones) y el curso
+            mysqli_query($conexion, "DELETE FROM curso_etiquetas WHERE id_curso = $id_curso_borrar");
+            mysqli_query($conexion, "DELETE FROM inscripciones WHERE id_curso = $id_curso_borrar");
+            
+            $sql_delete = "DELETE FROM cursos WHERE id_curso = $id_curso_borrar AND id_creador = $idUsuario";
+            if (mysqli_query($conexion, $sql_delete)) {
+                $mensaje_feedback = "<div class='alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4' role='alert'>
+                                        <i class='bi bi-check-circle-fill me-2'></i>El curso ha sido eliminado exitosamente.
+                                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                                     </div>";
+            } else {
+                $mensaje_feedback = "<div class='alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4' role='alert'>
+                                        <i class='bi bi-exclamation-triangle-fill me-2'></i>Hubo un error al intentar eliminar el curso.
+                                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                                     </div>";
+            }
+        }
+    }
 
     // OBTENEMOS LAS INSCRIPCIONES PARA LA PESTAÑA 2
     $sql_mis_inscripciones = "
-        SELECT c.*, u.nombre as profe_nombre, u.apellido as profe_apellido 
+        SELECT c.*, i.estado as estado_inscripcion, u.nombre as profe_nombre, u.apellido as profe_apellido 
         FROM inscripciones i
         INNER JOIN cursos c ON i.id_curso = c.id_curso
         INNER JOIN usuarios u ON c.id_creador = u.id_usuario
@@ -22,19 +58,32 @@
         ORDER BY i.id_inscripcion DESC
     ";
     $resultado_inscripciones = mysqli_query($conexion, $sql_mis_inscripciones);
-    $cantidad_inscripciones = mysqli_num_rows($resultado_inscripciones);
+    $lista_inscripciones = [];
+    $cantidad_inscripciones_activas = 0;
+
+    if ($resultado_inscripciones) {
+        while ($fila_ins = mysqli_fetch_assoc($resultado_inscripciones)) {
+            $lista_inscripciones[] = $fila_ins;
+            if ((int)$fila_ins['activo'] === 1) {
+                $cantidad_inscripciones_activas++;
+            }
+        }
+    }
+    $cantidad_inscripciones = count($lista_inscripciones);
 
     $titulo_pagina = 'Mis Cursos - Cursolandia';
     $ruta = '../'; 
     require_once 'header.php'; 
 ?>
 
-    <main class="container my-5">
+    <main class="container my-5" style="min-height: 70vh;">
         
+        <?php echo $mensaje_feedback; ?>
+
         <!-- Cabecera de la sección -->
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-4 pb-3 border-bottom gap-3">
             <h2 class="fw-bold text-dark mb-0">Gestión de Cursos</h2>
-            <a href="nuevoCurso.php" class="btn btn-purple fw-medium shadow-sm">
+            <a href="nuevoCurso.php" class="btn btn-purple fw-medium shadow-sm text-white">
                 <i class="bi bi-plus-lg me-2"></i>Crear Nuevo Curso
             </a>
         </div>
@@ -43,7 +92,7 @@
         <?php if(isset($_GET['limite']) && $_GET['limite'] == 'alcanzado'): ?>
             <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                <strong>¡Límite alcanzado!</strong> No puedes inscribirte a más de 3 cursos simultáneamente en el Plan Gratuito.
+                <strong>¡Límite alcanzado!</strong> No puedes inscribirte a nuevos cursos mientras tengas 3 o más inscripciones activas en el Plan Gratuito.
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <?php endif; ?>
@@ -75,7 +124,7 @@
                     $sqlCursosActivos = "
                     SELECT COUNT(id_creador) as total_Cursos FROM cursos
                     INNER JOIN usuarios ON id_creador = id_usuario
-                    WHERE id_creador = '$idUsuario' AND activo=1
+                    WHERE id_creador = '$idUsuario' AND (activo = 1 OR programado = 1)
                     ";
 
                     $resultado = mysqli_query($conexion, $sqlCursosActivos);
@@ -85,7 +134,7 @@
                     <div class="alert alert-info border-0 shadow-sm d-flex align-items-center mb-4 rounded-3" style="background-color: rgba(108, 92, 231, 0.1); color: var(--SECONDARY);">
                         <i class="bi bi-info-circle-fill fs-5 me-3"></i>
                         <div>
-                            <strong>Plan Gratuito:</strong> Tienes <strong> '. $contador['total_Cursos'] . ' de 3</strong> cursos activos permitidos. <a href="solicitarPro.php" class="alert-link" style="color: var(--PRIMARY);">Sube a Plan Pro</a> para crear cursos ilimitados.
+                            <strong>Plan Gratuito:</strong> Tienes <strong> '. $contador['total_Cursos'] . ' de 3</strong> cursos activos/programados permitidos. <a href="solicitarPro.php" class="alert-link" style="color: var(--PRIMARY);">Sube a Plan Pro</a> para crear cursos ilimitados.
                         </div>
                     </div>
                     ';
@@ -95,10 +144,9 @@
                 <!-- Grilla de Cursos Dictados -->
                 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
                     <?php
-                    // Consulta con subconsulta para calcular total de alumnos por curso de forma real
                     $sqlMostrar = "
                     SELECT c.*, 
-                           (SELECT COUNT(*) FROM inscripciones i WHERE i.id_curso = c.id_curso) as total_alumnos
+                           (SELECT COUNT(*) FROM inscripciones i WHERE i.id_curso = c.id_curso AND i.estado = 'aceptada') as total_alumnos
                     FROM cursos c
                     WHERE c.id_creador = '$idUsuario' 
                     ORDER BY c.fecha_creacion DESC
@@ -109,41 +157,56 @@
                     if(mysqli_num_rows($resultado) > 0){
                         while($curso = mysqli_fetch_array($resultado)){
                             
-                            $activo = ($curso['activo'] == 1) ? "Activo" : "Inactivo";
+                            $es_prog = ($curso['activo'] == 0 && !empty($curso['programado']) && $curso['programado'] == 1);
                             $privacidad = ($curso['es_publico'] == 1) ? "Público" : "Privado";
                             $cupoTexto = $curso['cupo'] ? $curso['cupo'] : 'Sin límite';
+                            $tiene_img = (!empty($curso['imagen']) && file_exists('../uploads/cursos/' . $curso['imagen']));
 
-                            if($curso['activo'] == 1){
-                                echo '<div class="col">
-                                    <div class="card h-100 border-0 shadow-sm rounded-4 curso-card-hover">
-                                        <div class="card-img-top rounded-top-4" style="height: 120px; background: linear-gradient(45deg, var(--PRIMARY), var(--TERCIARY));"></div>
-                                        <div class="card-body p-4">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <span class="badge bg-success">' . $activo .'</span>
-                                                <span class="badge bg-light text-dark border">' . $privacidad .'</span>
-                                            </div>
-                                            <h5 class="fw-bold text-dark mb-1">'. htmlspecialchars($curso['titulo']) .'</h5>
-                                            <p class="text-muted small mb-3"><i class="bi bi-people-fill me-1"></i>'. $curso['total_alumnos'] .' / '. $cupoTexto .' Alumnos</p>
-                                            <a href="editarCurso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">Administrar Curso</a>
-                                        </div>
-                                    </div>
-                                </div>';
-                            }else{
-                                echo '<div class="col">
-                                    <div class="card h-100 border-0 shadow-sm rounded-4 curso-card-hover">
-                                        <div class="card-img-top rounded-top-4" style="height: 120px; background: linear-gradient(45deg, #6c757d, #adb5bd);"></div>
-                                        <div class="card-body p-4">
-                                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <span class="badge bg-secondary">' . $activo . '</span>
-                                                <span class="badge bg-light text-dark border"> ' . $privacidad . '</span>
-                                            </div>
-                                            <h5 class="fw-bold text-dark mb-1">' . htmlspecialchars($curso['titulo']) . '</h5>
-                                            <p class="text-muted small mb-3"><i class="bi bi-people-fill me-1"></i>'. $curso['total_alumnos'] .' / '. $cupoTexto .' Alumnos</p>
-                                            <a href="editarCurso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">Editar Borrador</a>
-                                        </div>
-                                    </div>
-                                </div>';
+                            if ($tiene_img) {
+                                $portada_html = '<div class="card-img-top rounded-top-4 overflow-hidden" style="height: 120px;">
+                                                    <img src="../uploads/cursos/' . htmlspecialchars($curso['imagen']) . '" alt="' . htmlspecialchars($curso['titulo']) . '" class="w-100 h-100" style="object-fit: cover;">
+                                                 </div>';
+                            } elseif ($curso['activo'] == 1 || $es_prog) {
+                                $clase_grad = 'curso-gradiente-' . (($curso['id_curso'] % 5) + 1);
+                                $portada_html = '<div class="card-img-top rounded-top-4 ' . $clase_grad . '" style="height: 120px;"></div>';
+                            } else {
+                                $portada_html = '<div class="card-img-top rounded-top-4" style="height: 120px; background: linear-gradient(45deg, #6c757d, #adb5bd);"></div>';
                             }
+
+                            if ($curso['activo'] == 1) {
+                                $estado_texto = 'Activo';
+                                $badge_estado = 'bg-success';
+                                $texto_boton = 'Administrar Curso';
+                            } elseif ($es_prog) {
+                                $estado_texto = 'Inicia ' . date("d/m/Y", strtotime($curso['fecha_inicio']));
+                                $badge_estado = 'bg-info text-dark';
+                                $texto_boton = 'Administrar Curso';
+                            } else {
+                                $estado_texto = 'Borrador';
+                                $badge_estado = 'bg-secondary';
+                                $texto_boton = 'Editar Borrador';
+                            }
+
+                            echo '<div class="col">
+                                <div class="card h-100 border-0 shadow-sm rounded-4 curso-card-hover">
+                                    ' . $portada_html . '
+                                    <div class="card-body p-4 d-flex flex-column">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <span class="badge ' . $badge_estado . '">' . $estado_texto .'</span>
+                                            <span class="badge bg-light text-dark border">' . $privacidad .'</span>
+                                        </div>
+                                        <h5 class="fw-bold text-dark mb-1">'. htmlspecialchars($curso['titulo']) .'</h5>
+                                        <p class="text-muted small mb-3"><i class="bi bi-people-fill me-1"></i>'. $curso['total_alumnos'] .' / '. $cupoTexto .' Alumnos</p>
+                                        
+                                        <div class="mt-auto d-flex gap-2">
+                                            <a href="editarCurso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">' . $texto_boton . '</a>
+                                            <button type="button" class="btn btn-outline-danger px-3" data-bs-toggle="modal" data-bs-target="#modalBorrarCurso" data-idcurso="'. $curso['id_curso'] .'" data-titulocurso="'. htmlspecialchars($curso['titulo'], ENT_QUOTES) .'" title="Eliminar Curso">
+                                                <i class="bi bi-trash-fill"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>';
                         }
                     }else{
                         echo '<div class="col-12 text-center p-5 bg-light rounded-4 border border-dashed w-100">
@@ -163,8 +226,8 @@
                     <div class="alert alert-warning border-0 shadow-sm d-flex align-items-center mb-4 rounded-3">
                         <i class="bi bi-exclamation-triangle-fill fs-5 me-3"></i>
                         <div>
-                            <strong>Plan Gratuito:</strong> Tienes <strong><?php echo $cantidad_inscripciones; ?> de 3</strong> inscripciones activas simultáneas. 
-                            <?php if($cantidad_inscripciones >= 3) echo "Has alcanzado tu límite."; ?>
+                            <strong>Plan Gratuito:</strong> Tienes <strong><?php echo $cantidad_inscripciones_activas; ?> de 3</strong> inscripciones activas simultáneas. <a href="solicitarPro.php" class="alert-link" style="color: var(--PRIMARY);">Sube a Plan Pro</a> para inscribirte a cursos ilimitados. 
+                            <?php if($cantidad_inscripciones_activas >= 3) echo "Conservas tus inscripciones actuales, pero no podrás sumarte a nuevos cursos hasta liberar cupo."; ?>
                         </div>
                     </div>
                 <?php endif; ?>
@@ -174,13 +237,33 @@
                     
                     <?php if ($cantidad_inscripciones > 0): ?>
                         
-                        <?php while ($inscripcion = mysqli_fetch_assoc($resultado_inscripciones)): ?>
+                        <?php foreach ($lista_inscripciones as $inscripcion): ?>
+                            <?php 
+                                $tiene_img_ins = (!empty($inscripcion['imagen']) && file_exists('../uploads/cursos/' . $inscripcion['imagen']));
+                                $clase_grad_ins = $tiene_img_ins ? '' : 'curso-gradiente-' . (($inscripcion['id_curso'] % 5) + 1);
+                                $es_prog_ins = ($inscripcion['activo'] == 0 && !empty($inscripcion['programado']) && $inscripcion['programado'] == 1);
+                            ?>
                             <div class="col">
                                 <div class="card h-100 border-0 shadow-sm rounded-4 curso-card-hover">
-                                    <div class="card-img-top rounded-top-4" style="height: 120px; background: linear-gradient(45deg, #0dcaf0, #0d6efd);"></div>
-                                    <div class="card-body p-4">
-                                        <div class="mb-2">
-                                            <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Inscripto</span>
+                                    <div class="card-img-top rounded-top-4 overflow-hidden <?php echo $clase_grad_ins; ?>" style="height: 120px;">
+                                        <?php if ($tiene_img_ins): ?>
+                                            <img src="../uploads/cursos/<?php echo htmlspecialchars($inscripcion['imagen']); ?>" alt="<?php echo htmlspecialchars($inscripcion['titulo']); ?>" class="w-100 h-100" style="object-fit: cover;">
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="card-body p-4 d-flex flex-column">
+                                        <div class="d-flex flex-wrap gap-1 mb-2">
+                                            <?php if ($inscripcion['estado_inscripcion'] === 'aceptada'): ?>
+                                                <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Inscripto</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Pendiente</span>
+                                            <?php endif; ?>
+
+                                            <?php if ($es_prog_ins): ?>
+                                                <span class="badge bg-info text-dark"><i class="bi bi-calendar-event me-1"></i>Inicia <?php echo date("d/m/Y", strtotime($inscripcion['fecha_inicio'])); ?></span>
+                                            <?php elseif ((int)$inscripcion['activo'] === 0): ?>
+                                                <span class="badge bg-secondary">Pausado / Borrador</span>
+                                            <?php endif; ?>
+
                                             <?php if ($inscripcion['es_pago'] == 1): ?>
                                                 <span class="badge bg-warning text-dark">Pago</span>
                                             <?php else: ?>
@@ -189,11 +272,11 @@
                                         </div>
                                         <h5 class="fw-bold text-dark mb-1"><?php echo htmlspecialchars($inscripcion['titulo']); ?></h5>
                                         <p class="text-muted small mb-3">Docente: <span class="fw-medium"><?php echo htmlspecialchars($inscripcion['profe_nombre'] . ' ' . $inscripcion['profe_apellido']); ?></span></p>
-                                        <a href="curso.php?id=<?php echo $inscripcion['id_curso']; ?>" class="btn btn-purple w-100 fw-medium">Entrar al Curso</a>
+                                        <a href="curso.php?id=<?php echo $inscripcion['id_curso']; ?>" class="btn btn-purple w-100 fw-medium text-white mt-auto">Entrar al Curso</a>
                                     </div>
                                 </div>
                             </div>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
 
                     <?php else: ?>
                         <div class="col-12 text-center p-5 bg-light rounded-4 border border-dashed w-100">
@@ -209,5 +292,52 @@
 
         </div>
     </main>
+
+    <!-- MODAL DE CONFIRMACIÓN PARA BORRAR CURSO -->
+    <div class="modal fade" id="modalBorrarCurso" tabindex="-1" aria-labelledby="modalBorrarCursoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4 text-dark">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-danger" id="modalBorrarCursoLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Eliminar Curso
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="misCursos.php" method="POST">
+                    <div class="modal-body p-4 text-center">
+                        <input type="hidden" name="id_curso_a_borrar" id="inputCursoIdBorrar">
+                        <i class="bi bi-trash3 text-danger display-4 mb-3 d-block"></i>
+                        <h5 class="fw-bold text-dark mb-2">¿Estás seguro de eliminar este curso?</h5>
+                        <p class="text-muted small mb-2">Se borrará permanentemente el curso <strong id="nombreCursoBorrar" class="text-dark"></strong> y se cancelarán las inscripciones asociadas.</p>
+                        <p class="text-danger small mb-0 fw-medium">Esta acción no se puede deshacer.</p>
+                    </div>
+                    <div class="modal-footer border-top p-3 d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-light border fw-medium px-4" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger fw-bold px-4">Sí, eliminar curso</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script para pasar dinámicamente los datos del curso al modal -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const modalBorrar = document.getElementById('modalBorrarCurso');
+            if (modalBorrar) {
+                modalBorrar.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    const idCurso = button.getAttribute('data-idcurso');
+                    const tituloCurso = button.getAttribute('data-titulocurso');
+
+                    const inputId = modalBorrar.querySelector('#inputCursoIdBorrar');
+                    const spanTitulo = modalBorrar.querySelector('#nombreCursoBorrar');
+
+                    inputId.value = idCurso;
+                    spanTitulo.textContent = '"' + tituloCurso + '"';
+                });
+            }
+        });
+    </script>
 
 <?php require_once 'footer.php'; ?>

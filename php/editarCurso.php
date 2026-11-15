@@ -16,8 +16,11 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 }
 
 $id_curso = (int)$_GET['id'];
-$id_creador = $_SESSION['id_usuario'];
+$id_creador = (int)$_SESSION['id_usuario'];
 $mensaje = '';
+
+// Sincronizamos el plan real desde la BD (y degradamos cursos excedentes si venció el Plan Pro)
+$plan_actual = verificarPlanUsuario($conexion, $id_creador);
 
 $sql_check = "SELECT * FROM cursos WHERE id_curso = $id_curso AND id_creador = $id_creador";
 $res_check = mysqli_query($conexion, $sql_check);
@@ -29,22 +32,114 @@ if (mysqli_num_rows($res_check) == 0) {
 
 $curso = mysqli_fetch_assoc($res_check);
 
-// Actualizar datos del curso y sus etiquetas
+// =========================================================
+// GESTIÓN DE SOLICITUDES DE ALUMNOS (ACEPTAR / RECHAZAR)
+// =========================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['accion_alumno'])) {
+    $id_inscripcion = (int)$_POST['id_inscripcion'];
+    $accion_alumno = $_POST['accion_alumno'];
+
+    $sql_check_ins = "SELECT i.*, u.nombre, u.apellido FROM inscripciones i INNER JOIN usuarios u ON i.id_alumno = u.id_usuario WHERE i.id_inscripcion = $id_inscripcion AND i.id_curso = $id_curso";
+    $res_check_ins = mysqli_query($conexion, $sql_check_ins);
+
+    if ($row_ins = mysqli_fetch_assoc($res_check_ins)) {
+        $id_alumno_target = (int)$row_ins['id_alumno'];
+        $nombre_alumno = $row_ins['nombre'] . ' ' . $row_ins['apellido'];
+        $titulo_curso_esc = mysqli_real_escape_string($conexion, $curso['titulo']);
+
+        if ($accion_alumno === 'aceptar') {
+            mysqli_query($conexion, "UPDATE inscripciones SET estado = 'aceptada' WHERE id_inscripcion = $id_inscripcion");
+
+            $titulo_notif = mysqli_real_escape_string($conexion, "¡Inscripción Aceptada!");
+            $msj_notif = mysqli_real_escape_string($conexion, "Tu solicitud de inscripción al curso '" . $curso['titulo'] . "' ha sido aceptada por el docente.");
+            mysqli_query($conexion, "
+                INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                VALUES ($id_alumno_target, '$titulo_notif', '$msj_notif', 'plan_pro', 0, NOW())
+            ");
+
+            header("Location: editarCurso.php?id=$id_curso&alumno=aceptado");
+            exit();
+
+        } elseif ($accion_alumno === 'rechazar') {
+            mysqli_query($conexion, "DELETE FROM inscripciones WHERE id_inscripcion = $id_inscripcion");
+
+            $titulo_notif = mysqli_real_escape_string($conexion, "Solicitud de Inscripción Rechazada");
+            $msj_notif = mysqli_real_escape_string($conexion, "Tu solicitud para sumarte al curso '" . $curso['titulo'] . "' fue desestimada por el docente.");
+            mysqli_query($conexion, "
+                INSERT INTO notificaciones (id_usuario, titulo, mensaje, tipo, leida, fecha_creacion) 
+                VALUES ($id_alumno_target, '$titulo_notif', '$msj_notif', 'foro_eliminada', 0, NOW())
+            ");
+
+            header("Location: editarCurso.php?id=$id_curso&alumno=rechazado");
+            exit();
+        }
+    }
+}
+
+// Valores iniciales para el formulario
+$titulo_val = $curso['titulo'];
+$descripcion_val = $curso['descripcion'];
+$es_publico_val = (int)$curso['es_publico'];
+$tipo_costo_val = (string)(int)$curso['es_pago'];
+$costo_monto_val = ((float)$curso['costo'] > 0) ? number_format((float)$curso['costo'], 2, '.', '') : '';
+$cupo_val = $curso['cupo'] ?? '';
+$fechaInicio_val = $curso['fecha_inicio'];
+$fechaFin_val = $curso['fecha_fin'];
+$activo_val = ($curso['activo'] == 1 || (!empty($curso['programado']) && $curso['programado'] == 1)) ? 1 : 0;
+
+// =========================================================
+// ACTUALIZAR DATOS DEL CURSO Y ETIQUETAS
+// =========================================================
 if (isset($_POST['botonEditarCurso'])) {
     
-    $titulo = mysqli_real_escape_string($conexion, trim($_POST['titulo']));
-    $descripcion = mysqli_real_escape_string($conexion, trim($_POST['descripcion']));
-    $es_publico = (int)$_POST['privacidad'];
-    $es_pago = (int)$_POST['costo'];
-    $cupo = !empty($_POST['cupo']) ? (int)$_POST['cupo'] : "NULL";
-    $fechaInicio = mysqli_real_escape_string($conexion, $_POST['fechaInicio']);
-    $fechaFin = mysqli_real_escape_string($conexion, $_POST['fechaFin']);
-    $activo = isset($_POST['estadoCurso']) ? 1 : 0;
+    $titulo_raw = trim($_POST['titulo'] ?? '');
+    $descripcion_raw = trim($_POST['descripcion'] ?? '');
+    $es_publico_val = (int)($_POST['privacidad'] ?? 1);
+    $tipo_costo_val = $_POST['tipo_costo'] ?? '0';
+    $es_pago = ((int)$tipo_costo_val === 1) ? 1 : 0;
+    $costo_monto_val = trim($_POST['costo_monto'] ?? '');
+    $costo_normalizado = str_replace(',', '.', $costo_monto_val);
+    $cupo_val = trim($_POST['cupo'] ?? '');
+    $fechaInicio_val = trim($_POST['fechaInicio'] ?? '');
+    $fechaFin_val = trim($_POST['fechaFin'] ?? '');
+    $activo_val = isset($_POST['estadoCurso']) ? 1 : 0;
+
+    $titulo_val = $titulo_raw;
+    $descripcion_val = $descripcion_raw;
+
+    $hoy = date('Y-m-d');
+    if ($activo_val === 1 && $fechaInicio_val > $hoy) {
+        $activo_bd = 0;
+        $programado_bd = 1;
+    } elseif ($activo_val === 1) {
+        $activo_bd = 1;
+        $programado_bd = 0;
+    } else {
+        $activo_bd = 0;
+        $programado_bd = 0;
+    }
 
     $puede_guardar = true;
 
-    if ($_SESSION['plan'] === 'gratis' && $activo == 1) {
-        $sql_cant = "SELECT COUNT(*) as total_activos FROM cursos WHERE id_creador = $id_creador AND activo = 1 AND id_curso != $id_curso";
+    if ($titulo_raw === '' || $descripcion_raw === '' || $fechaInicio_val === '' || $fechaFin_val === '') {
+        $puede_guardar = false;
+        $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                        <i class='bi bi-exclamation-triangle-fill me-2'></i>Todos los campos obligatorios deben estar completos.
+                    </div>";
+    } elseif ($es_pago === 1 && ($costo_normalizado === '' || !is_numeric($costo_normalizado) || (float)$costo_normalizado <= 0)) {
+        $puede_guardar = false;
+        $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                        <i class='bi bi-exclamation-triangle-fill me-2'></i>Debes ingresar un precio válido mayor a $0 para un curso de pago.
+                    </div>";
+    } elseif ($fechaFin_val < $fechaInicio_val) {
+        $puede_guardar = false;
+        $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                        <i class='bi bi-exclamation-triangle-fill me-2'></i>La fecha de fin no puede ser anterior a la fecha de inicio.
+                    </div>";
+    }
+
+    if ($puede_guardar && $plan_actual === 'gratis' && $activo_val == 1) {
+        $sql_cant = "SELECT COUNT(*) as total_activos FROM cursos WHERE id_creador = $id_creador AND (activo = 1 OR programado = 1) AND id_curso != $id_curso";
         $res_cant = mysqli_query($conexion, $sql_cant);
         $fila_cant = mysqli_fetch_assoc($res_cant);
 
@@ -52,28 +147,91 @@ if (isset($_POST['botonEditarCurso'])) {
             $puede_guardar = false;
             $mensaje = "<div class='alert alert-warning text-center fw-medium mb-4' role='alert'>
                             <i class='bi bi-exclamation-triangle-fill me-2'></i>
-                            Límite alcanzado: Ya tienes 3 cursos activos en tu Plan Gratuito. 
+                            Límite alcanzado: Ya tienes 3 cursos activos o programados en tu Plan Gratuito. 
                             Guárdalo como borrador desmarcando 'Publicar como Activo' o solicita el Plan Pro.
                         </div>";
         }
     }
 
+    $imagen_actual = $curso['imagen'] ?? null;
+    $nueva_imagen = $imagen_actual;
+    $imagen_reemplazada = false;
+
     if ($puede_guardar) {
+        if (isset($_POST['eliminar_imagen']) && $_POST['eliminar_imagen'] == '1') {
+            $nueva_imagen = null;
+        }
+
+        if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] !== UPLOAD_ERR_NO_FILE) {
+            if ($_FILES['imagen']['error'] !== UPLOAD_ERR_OK) {
+                $puede_guardar = false;
+                $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                                <i class='bi bi-exclamation-triangle-fill me-2'></i>Error al subir la imagen de portada (verifica que no supere el límite del servidor).
+                            </div>";
+            } else {
+                $ext = strtolower(pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION));
+                $permitidas = ['jpg', 'jpeg', 'png', 'webp'];
+                if (!in_array($ext, $permitidas)) {
+                    $puede_guardar = false;
+                    $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                                    <i class='bi bi-exclamation-triangle-fill me-2'></i>Formato de imagen no válido. Solo se permiten JPG, PNG o WEBP.
+                                </div>";
+                } elseif ($_FILES['imagen']['size'] > 2097152) { // 2 MB
+                    $puede_guardar = false;
+                    $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                                    <i class='bi bi-exclamation-triangle-fill me-2'></i>La imagen de portada no puede superar los 2 MB.
+                                </div>";
+                } else {
+                    $dir_cursos = '../uploads/cursos/';
+                    if (!file_exists($dir_cursos)) {
+                        mkdir($dir_cursos, 0777, true);
+                    }
+                    $nombre_subido = 'curso_' . $id_creador . '_' . time() . '.' . $ext;
+                    if (move_uploaded_file($_FILES['imagen']['tmp_name'], $dir_cursos . $nombre_subido)) {
+                        $nueva_imagen = $nombre_subido;
+                        $imagen_reemplazada = true;
+                    } else {
+                        $puede_guardar = false;
+                        $mensaje = "<div class='alert alert-danger text-center fw-medium mb-4' role='alert'>
+                                        <i class='bi bi-exclamation-triangle-fill me-2'></i>No se pudo guardar la imagen de portada en el servidor.
+                                    </div>";
+                    }
+                }
+            }
+        }
+    }
+
+    if ($puede_guardar) {
+        $titulo = mysqli_real_escape_string($conexion, $titulo_raw);
+        $descripcion = mysqli_real_escape_string($conexion, $descripcion_raw);
+        $costo_final = ($es_pago === 1) ? number_format((float)$costo_normalizado, 2, '.', '') : '0.00';
+        $cupo = ($cupo_val !== '') ? (int)$cupo_val : "NULL";
+        $fechaInicio = mysqli_real_escape_string($conexion, $fechaInicio_val);
+        $fechaFin = mysqli_real_escape_string($conexion, $fechaFin_val);
+        $imagen_sql = $nueva_imagen ? "'" . mysqli_real_escape_string($conexion, $nueva_imagen) . "'" : "NULL";
+
         $sql_update = "
             UPDATE cursos SET 
                 titulo = '$titulo',
                 descripcion = '$descripcion',
-                es_publico = $es_publico,
+                es_publico = $es_publico_val,
                 es_pago = $es_pago,
+                costo = $costo_final,
+                imagen = $imagen_sql,
                 cupo = $cupo,
                 fecha_inicio = '$fechaInicio',
                 fecha_fin = '$fechaFin',
-                activo = $activo
+                activo = $activo_bd,
+                programado = $programado_bd
             WHERE id_curso = $id_curso AND id_creador = $id_creador
         ";
 
         if (mysqli_query($conexion, $sql_update)) {
             
+            if (!empty($imagen_actual) && $imagen_actual !== $nueva_imagen && file_exists('../uploads/cursos/' . $imagen_actual)) {
+                unlink('../uploads/cursos/' . $imagen_actual);
+            }
+
             // ACTUALIZACIÓN DE ETIQUETAS DEL CURSO
             mysqli_query($conexion, "DELETE FROM curso_etiquetas WHERE id_curso = $id_curso");
             if (isset($_POST['etiquetas']) && is_array($_POST['etiquetas'])) {
@@ -98,24 +256,40 @@ if (isset($_POST['botonEditarCurso'])) {
             
             $res_check = mysqli_query($conexion, $sql_check);
             $curso = mysqli_fetch_assoc($res_check);
+            $titulo_val = $curso['titulo'];
+            $descripcion_val = $curso['descripcion'];
+            $es_publico_val = (int)$curso['es_publico'];
+            $tipo_costo_val = (string)(int)$curso['es_pago'];
+            $costo_monto_val = ((float)$curso['costo'] > 0) ? number_format((float)$curso['costo'], 2, '.', '') : '';
+            $cupo_val = $curso['cupo'] ?? '';
+            $fechaInicio_val = $curso['fecha_inicio'];
+            $fechaFin_val = $curso['fecha_fin'];
+            $activo_val = ($curso['activo'] == 1 || (!empty($curso['programado']) && $curso['programado'] == 1)) ? 1 : 0;
         } else {
+            if ($imagen_reemplazada && $nueva_imagen && file_exists('../uploads/cursos/' . $nueva_imagen)) {
+                unlink('../uploads/cursos/' . $nueva_imagen);
+            }
             $mensaje = "<div class='alert alert-danger text-center mb-4' role='alert'>Error: " . mysqli_error($conexion) . "</div>";
         }
     }
 }
 
-// Alumnos inscriptos
+// Alumnos inscriptos y solicitudes
 $sql_alumnos = "
     SELECT i.*, u.nombre, u.apellido, u.email, u.dni
     FROM inscripciones i
     INNER JOIN usuarios u ON i.id_alumno = u.id_usuario
     WHERE i.id_curso = $id_curso
-    ORDER BY i.id_inscripcion DESC
+    ORDER BY i.estado DESC, i.fecha_inscripcion DESC
 ";
 $resultado_alumnos = mysqli_query($conexion, $sql_alumnos);
 $total_alumnos = mysqli_num_rows($resultado_alumnos);
 
-// Etiquetas asociadas a este curso
+$sql_cant_aceptados = "SELECT COUNT(*) as total FROM inscripciones WHERE id_curso = $id_curso AND estado = 'aceptada'";
+$res_cant_aceptados = mysqli_query($conexion, $sql_cant_aceptados);
+$total_aceptados = mysqli_fetch_assoc($res_cant_aceptados)['total'];
+
+// Etiquetas ya asociadas a este curso (para marcar los checkboxes por defecto)
 $sql_tags_curso = "
     SELECT e.nombre 
     FROM curso_etiquetas ce 
@@ -124,10 +298,20 @@ $sql_tags_curso = "
     ORDER BY e.nombre ASC
 ";
 $res_tags_curso = mysqli_query($conexion, $sql_tags_curso);
+$etiquetas_curso_actual = [];
+while ($t_cur = mysqli_fetch_assoc($res_tags_curso)) {
+    $etiquetas_curso_actual[] = $t_cur['nombre'];
+}
 
-// Catálogo completo de etiquetas
+// Catálogo completo de todas las etiquetas de la base de datos
 $sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
 $res_todas_etiquetas = mysqli_query($conexion, $sql_todas_etiquetas);
+$todas_etiquetas_arr = [];
+if ($res_todas_etiquetas) {
+    while($tag = mysqli_fetch_assoc($res_todas_etiquetas)) {
+        $todas_etiquetas_arr[] = $tag['nombre'];
+    }
+}
 
 $titulo_pagina = 'Editar Curso - Cursolandia';
 $ruta = '../'; 
@@ -140,6 +324,18 @@ require_once 'header.php';
                 
                 <?php echo $mensaje; ?>
 
+                <?php if (isset($_GET['alumno']) && $_GET['alumno'] === 'aceptado'): ?>
+                    <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i>Inscripción del alumno aceptada y notificada correctamente.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php elseif (isset($_GET['alumno']) && $_GET['alumno'] === 'rechazado'): ?>
+                    <div class="alert alert-info alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>Solicitud rechazada y notificada al alumno.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+
                 <div class="card shadow-sm border-0 rounded-4 mb-5">
                     
                     <div class="card-header bg-white border-bottom py-4 px-4 px-lg-5 d-flex justify-content-between align-items-center">
@@ -150,85 +346,101 @@ require_once 'header.php';
                     </div>
                     
                     <div class="card-body p-4 p-lg-5">
-                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST">
+                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" enctype="multipart/form-data">
                             
                             <div class="row g-4">
                                 
                                 <div class="col-md-7">
                                     <div class="mb-4">
                                         <label for="titulo" class="form-label fw-medium text-dark">Título del Curso <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control custom-input" id="titulo" name="titulo" maxlength="30" value="<?php echo htmlspecialchars($curso['titulo']); ?>" required>
-                                        <div class="form-text">Máximo 30 caracteres.</div>
+                                        <input type="text" class="form-control custom-input" id="titulo" name="titulo" maxlength="100" value="<?php echo htmlspecialchars($titulo_val); ?>" required>
+                                        <div class="form-text">Máximo 100 caracteres.</div>
                                     </div>
                                     
                                     <div class="mb-4">
                                         <label for="descripcion" class="form-label fw-medium text-dark">Descripción <span class="text-danger">*</span></label>
-                                        <textarea class="form-control custom-input" id="descripcion" name="descripcion" rows="6" maxlength="1000" required><?php echo htmlspecialchars($curso['descripcion']); ?></textarea>
+                                        <textarea class="form-control custom-input" id="descripcion" name="descripcion" rows="6" maxlength="1000" required><?php echo htmlspecialchars($descripcion_val); ?></textarea>
                                         <div class="form-text">Máximo 1000 caracteres.</div>
                                     </div>
 
-                                    <!-- Buscador y Selección de Etiquetas -->
+                                    <!-- Selector de Etiquetas mediante Modal -->
                                     <div class="mb-3">
-                                        <label for="buscadorEtiquetas" class="form-label fw-medium text-dark">Etiquetas (Opcional)</label>
-                                        <input type="text" class="form-control custom-input mb-2" id="buscadorEtiquetas" list="listaSugerencias" placeholder="Añadir etiquetas (ej: #Programación)..." autocomplete="off">
-                                        <datalist id="listaSugerencias">
-                                            <?php while($tag_sug = mysqli_fetch_assoc($res_todas_etiquetas)): ?>
-                                                <option value="<?php echo htmlspecialchars($tag_sug['nombre']); ?>"></option>
-                                            <?php endwhile; ?>
-                                        </datalist>
+                                        <label class="form-label fw-medium text-dark">Etiquetas (Opcional)</label>
+                                        <div class="mb-2">
+                                            <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
+                                                <i class="bi bi-tags-fill me-2"></i>Seleccionar Etiquetas
+                                        </div>
 
                                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap gap-2" style="min-height: 80px;">
-                                            <?php while($tag_c = mysqli_fetch_assoc($res_tags_curso)): ?>
-                                                <span class="badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta">
-                                                    #<?php echo htmlspecialchars($tag_c['nombre']); ?>
-                                                    <input type="hidden" name="etiquetas[]" value="<?php echo htmlspecialchars($tag_c['nombre']); ?>">
-                                                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
-                                                </span>
-                                            <?php endwhile; ?>
+                                            <!-- Se rellena dinámicamente con JS -->
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="col-md-5">
+                                    
+                                    <div class="mb-4">
+                                        <label for="imagen" class="form-label fw-medium text-dark">Imagen de Portada</label>
+                                        <?php if (!empty($curso['imagen'])): ?>
+                                            <div class="mb-2">
+                                                <img src="../uploads/cursos/<?php echo htmlspecialchars($curso['imagen']); ?>" alt="Portada actual" class="img-fluid rounded-3 border w-100" style="max-height: 150px; object-fit: cover;">
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="eliminar_imagen" name="eliminar_imagen" value="1">
+                                                <label class="form-check-label small text-danger" for="eliminar_imagen">Quitar imagen actual (usar color por defecto)</label>
+                                            </div>
+                                        <?php endif; ?>
+                                        <input type="file" class="form-control custom-input" id="imagen" name="imagen" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
+                                        <div class="form-text">JPG, PNG o WEBP (máx. 2 MB). Deja vacío para conservar la actual.</div>
+                                    </div>
+
                                     <div class="row g-3 mb-4">
                                         <div class="col-6">
                                             <label for="privacidad" class="form-label fw-medium text-dark">Privacidad</label>
                                             <select class="form-select custom-input" id="privacidad" name="privacidad">
-                                                <option value="1" <?php echo ($curso['es_publico'] == 1) ? 'selected' : ''; ?>>Público</option>
-                                                <option value="0" <?php echo ($curso['es_publico'] == 0) ? 'selected' : ''; ?>>Privado</option>
+                                                <option value="1" <?php echo ($es_publico_val == 1) ? 'selected' : ''; ?>>Público</option>
+                                                <option value="0" <?php echo ($es_publico_val == 0) ? 'selected' : ''; ?>>Privado</option>
                                             </select>
                                         </div>
                                         <div class="col-6">
-                                            <label for="costo" class="form-label fw-medium text-dark">Costo</label>
-                                            <select class="form-select custom-input" id="costo" name="costo">
-                                                <option value="0" <?php echo ($curso['es_pago'] == 0) ? 'selected' : ''; ?>>Gratuito</option>
-                                                <option value="1" <?php echo ($curso['es_pago'] == 1) ? 'selected' : ''; ?>>Pago</option>
+                                            <label for="tipo_costo" class="form-label fw-medium text-dark">Modalidad</label>
+                                            <select class="form-select custom-input" id="tipo_costo" name="tipo_costo">
+                                                <option value="0" <?php echo ($tipo_costo_val == '0') ? 'selected' : ''; ?>>Gratuito</option>
+                                                <option value="1" <?php echo ($tipo_costo_val == '1') ? 'selected' : ''; ?>>De Pago</option>
                                             </select>
+                                        </div>
+                                        <div class="col-12" id="bloquePrecio" style="<?php echo ($tipo_costo_val == '1') ? '' : 'display: none;'; ?>">
+                                            <label for="costo_monto" class="form-label fw-medium text-dark">Precio del Curso (ARS) <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-light fw-bold">$</span>
+                                                <input type="number" class="form-control custom-input" id="costo_monto" name="costo_monto" min="1" step="0.01" value="<?php echo htmlspecialchars($costo_monto_val); ?>" placeholder="Ej: 15000.00" <?php echo ($tipo_costo_val == '1') ? 'required' : ''; ?>>
+                                            </div>
+                                            <div class="form-text">Indica el valor que abonarán los estudiantes para inscribirse.</div>
                                         </div>
                                     </div>
 
                                     <div class="mb-4">
                                         <label for="cupo" class="form-label fw-medium text-dark">Cupo máximo (Opcional)</label>
-                                        <input type="number" class="form-control custom-input" id="cupo" name="cupo" min="1" value="<?php echo htmlspecialchars($curso['cupo'] ?? ''); ?>" placeholder="Ej: 30 (Dejar vacío si es sin límite)">
+                                        <input type="number" class="form-control custom-input" id="cupo" name="cupo" min="1" value="<?php echo htmlspecialchars($cupo_val); ?>" placeholder="Ej: 30 (Dejar vacío si es sin límite)">
                                     </div>
 
                                     <div class="row g-3 mb-4">
                                         <div class="col-6">
                                             <label for="fechaInicio" class="form-label fw-medium text-dark">Inicio <span class="text-danger">*</span></label>
-                                            <input type="date" class="form-control custom-input" id="fechaInicio" name="fechaInicio" value="<?php echo $curso['fecha_inicio']; ?>" required>
+                                            <input type="date" class="form-control custom-input" id="fechaInicio" name="fechaInicio" value="<?php echo htmlspecialchars($fechaInicio_val); ?>" required>
                                         </div>
                                         <div class="col-6">
                                             <label for="fechaFin" class="form-label fw-medium text-dark">Fin <span class="text-danger">*</span></label>
-                                            <input type="date" class="form-control custom-input" id="fechaFin" name="fechaFin" value="<?php echo $curso['fecha_fin']; ?>" required>
+                                            <input type="date" class="form-control custom-input" id="fechaFin" name="fechaFin" value="<?php echo htmlspecialchars($fechaFin_val); ?>" required>
                                         </div>
                                     </div>
 
                                     <div class="mb-3 p-3 bg-light rounded border">
                                         <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" role="switch" id="estadoCurso" name="estadoCurso" value="1" <?php echo ($curso['activo'] == 1) ? 'checked' : ''; ?>>
+                                            <input class="form-check-input" type="checkbox" role="switch" id="estadoCurso" name="estadoCurso" value="1" <?php echo ($activo_val == 1) ? 'checked' : ''; ?>>
                                             <label class="form-check-label fw-medium text-dark" for="estadoCurso">Publicar como Activo</label>
                                         </div>
-                                        <div class="form-text small mb-0">Desmárcalo si solo quieres guardarlo como borrador.</div>
+                                        <div class="form-text small mb-0">Si la fecha de inicio es futura, se activará automáticamente ese día.</div>
                                     </div>
                                 </div>
                             </div>
@@ -237,21 +449,21 @@ require_once 'header.php';
 
                             <div class="d-flex justify-content-end gap-3">
                                 <a href="misCursos.php" class="btn btn-light fw-medium px-4 text-muted border">Cancelar</a>
-                                <button type="submit" class="btn btn-purple fw-medium px-4" name="botonEditarCurso">Guardar Cambios</button>
+                                <button type="submit" class="btn btn-purple fw-medium px-4 text-white" name="botonEditarCurso">Guardar Cambios</button>
                             </div>
                             
                         </form>
                     </div>
                 </div>
 
-                <!-- Nómina de Alumnos -->
+                <!-- Nómina de Alumnos y Gestión de Solicitudes -->
                 <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
                     <div class="card-header bg-white border-bottom py-4 px-4 px-lg-5 d-flex justify-content-between align-items-center">
                         <h4 class="fw-bold mb-0 text-dark">
-                            <i class="bi bi-people-fill color-logo me-2"></i>Alumnos Inscriptos
+                            <i class="bi bi-people-fill color-logo me-2"></i>Nómina de Alumnos
                         </h4>
                         <span class="badge bg-purple px-3 py-2 fs-6">
-                            <?php echo $total_alumnos; ?> / <?php echo $curso['cupo'] ? $curso['cupo'] : 'Sin límite'; ?>
+                            <?php echo $total_aceptados; ?> / <?php echo $curso['cupo'] ? $curso['cupo'] : 'Sin límite'; ?> confirmados
                         </span>
                     </div>
 
@@ -265,13 +477,15 @@ require_once 'header.php';
                                             <th>Alumno</th>
                                             <th>DNI</th>
                                             <th>Email</th>
-                                            <th class="pe-4 text-end">Estado</th>
+                                            <th>Estado</th>
+                                            <th class="pe-4 text-end">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php 
                                         $num = 1;
                                         while ($alumno = mysqli_fetch_assoc($resultado_alumnos)): 
+                                            $estado_ins = $alumno['estado'];
                                         ?>
                                             <tr>
                                                 <td class="ps-4 fw-medium text-muted"><?php echo $num++; ?></td>
@@ -280,8 +494,43 @@ require_once 'header.php';
                                                 </td>
                                                 <td class="text-secondary"><?php echo htmlspecialchars($alumno['dni']); ?></td>
                                                 <td class="text-secondary"><?php echo htmlspecialchars($alumno['email']); ?></td>
+                                                <td>
+                                                    <?php if ($estado_ins === 'aceptada'): ?>
+                                                        <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Aceptado</span>
+                                                    <?php elseif ($estado_ins === 'pendiente'): ?>
+                                                        <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>Pendiente</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-secondary">Rechazado</span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td class="pe-4 text-end">
-                                                    <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Inscripto</span>
+                                                    <?php if ($estado_ins === 'pendiente'): ?>
+                                                        <div class="d-inline-flex gap-2">
+                                                            <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline">
+                                                                <input type="hidden" name="accion_alumno" value="aceptar">
+                                                                <input type="hidden" name="id_inscripcion" value="<?php echo $alumno['id_inscripcion']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-success fw-medium">
+                                                                    <i class="bi bi-check-lg me-1"></i>Aceptar
+                                                                </button>
+                                                            </form>
+
+                                                            <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Rechazar solicitud de este alumno?');">
+                                                                <input type="hidden" name="accion_alumno" value="rechazar">
+                                                                <input type="hidden" name="id_inscripcion" value="<?php echo $alumno['id_inscripcion']; ?>">
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger fw-medium">
+                                                                    <i class="bi bi-x-lg me-1"></i>Rechazar
+                                                                </button>
+                                                            </form>
+                                                        </div>
+                                                    <?php else: ?>
+                                                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Dar de baja a este alumno del curso?');">
+                                                            <input type="hidden" name="accion_alumno" value="rechazar">
+                                                            <input type="hidden" name="id_inscripcion" value="<?php echo $alumno['id_inscripcion']; ?>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-secondary border-0" title="Dar de baja">
+                                                                <i class="bi bi-person-x-fill text-danger fs-6"></i>
+                                                            </button>
+                                                        </form>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endwhile; ?>
@@ -291,7 +540,7 @@ require_once 'header.php';
                         <?php else: ?>
                             <div class="text-center p-5 text-muted">
                                 <i class="bi bi-journal-x display-4 mb-3 d-block opacity-50"></i>
-                                Aún no hay alumnos inscriptos en este curso.
+                                Aún no hay alumnos inscriptos ni solicitudes pendientes en este curso.
                             </div>
                         <?php endif; ?>
                     </div>
@@ -301,51 +550,110 @@ require_once 'header.php';
         </div>
     </main>
 
+    <!-- Modal de Selección de Etiquetas -->
+    <div class="modal fade" id="modalEtiquetas" tabindex="-1" aria-labelledby="modalEtiquetasLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-dark" id="modalEtiquetasLabel">
+                        <i class="bi bi-tags color-logo me-2"></i>Seleccionar Etiquetas
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que apliquen al curso:</p>
+                    <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
+                        <?php if (count($todas_etiquetas_arr) > 0): ?>
+                            <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
+                                $is_checked = in_array($nombre_tag, $etiquetas_curso_actual) ? 'checked' : '';
+                            ?>
+                                <div class="col-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" name="etiquetas[]" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_edit_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
+                                        <label class="form-check-label text-dark" for="tag_edit_<?php echo md5($nombre_tag); ?>">
+                                            #<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>
+                                        </label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="col-12 text-center text-muted py-3">
+                                No hay etiquetas registradas en la base de datos.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-purple fw-bold px-4 text-white" data-bs-dismiss="modal">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS de interacción de Precio y Sincronización de Etiquetas con Modal -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const inputEtiqueta = document.getElementById('buscadorEtiquetas');
-            const contenedor = document.getElementById('contenedorEtiquetas');
+            const selectTipoCosto = document.getElementById('tipo_costo');
+            const bloquePrecio = document.getElementById('bloquePrecio');
+            const inputCostoMonto = document.getElementById('costo_monto');
 
-            function agregarEtiqueta(nombre) {
-                let textoLimpio = nombre.trim().replace(/^#+/, '');
-                if (textoLimpio === '') return;
+            function actualizarVisibilidadPrecio() {
+                if (selectTipoCosto.value === '1') {
+                    bloquePrecio.style.display = '';
+                    inputCostoMonto.required = true;
+                } else {
+                    bloquePrecio.style.display = 'none';
+                    inputCostoMonto.required = false;
+                }
+            }
 
-                const existentes = Array.from(contenedor.querySelectorAll('input[name="etiquetas[]"]'))
-                    .map(inp => inp.value.toLowerCase());
+            if (selectTipoCosto) {
+                selectTipoCosto.addEventListener('change', actualizarVisibilidadPrecio);
+                actualizarVisibilidadPrecio();
+            }
 
-                if (existentes.includes(textoLimpio.toLowerCase())) {
-                    inputEtiqueta.value = '';
+            // Sincronización de Etiquetas (Checkboxes del Modal <-> Contenedor de Badges)
+            const checkboxesEtiquetas = document.querySelectorAll('.checkbox-etiqueta');
+            const contenedorEtiquetas = document.getElementById('contenedorEtiquetas');
+
+            function actualizarBadges() {
+                contenedorEtiquetas.innerHTML = '';
+                const seleccionadas = Array.from(checkboxesEtiquetas).filter(cb => cb.checked);
+
+                if (seleccionadas.length === 0) {
+                    contenedorEtiquetas.innerHTML = '<span class="text-muted small fst-italic">Ninguna etiqueta seleccionada.</span>';
                     return;
                 }
 
-                const badge = document.createElement('span');
-                badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
-                badge.innerHTML = `
-                    #${textoLimpio}
-                    <input type="hidden" name="etiquetas[]" value="${textoLimpio}">
-                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
-                `;
-
-                contenedor.appendChild(badge);
-                inputEtiqueta.value = '';
+                seleccionadas.forEach(cb => {
+                    const tagName = cb.value;
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
+                    badge.innerHTML = `
+                        #${tagName}
+                        <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover" data-value="${tagName}"></button>
+                    `;
+                    contenedorEtiquetas.appendChild(badge);
+                });
             }
 
-            inputEtiqueta.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    agregarEtiqueta(this.value);
-                }
+            checkboxesEtiquetas.forEach(cb => {
+                cb.addEventListener('change', actualizarBadges);
             });
 
-            inputEtiqueta.addEventListener('change', function() {
-                agregarEtiqueta(this.value);
-            });
-
-            contenedor.addEventListener('click', function(e) {
+            contenedorEtiquetas.addEventListener('click', function(e) {
                 if (e.target.classList.contains('btn-remover-etiqueta')) {
-                    e.target.closest('.item-etiqueta').remove();
+                    const tagName = e.target.getAttribute('data-value');
+                    const cb = Array.from(checkboxesEtiquetas).find(item => item.value === tagName);
+                    if (cb) {
+                        cb.checked = false;
+                        actualizarBadges();
+                    }
                 }
             });
+
+            // Inicializar al cargar la página con las etiquetas actuales del curso
+            actualizarBadges();
         });
     </script>
 

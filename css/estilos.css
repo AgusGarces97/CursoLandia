@@ -1,9 +1,17 @@
 :root{
-    --PRIMARY:  #6c5ce7;
-    --SECONDARY: #5b4bc4;
-    --TERCIARY: #a29bfe;
-    --BORDENAV: #f0f0f5;
+    --PRIMARY:  #2563eb;    /* Azul royal moderno */
+    --SECONDARY: #1d4ed8;   /* Azul más oscuro para hover */
+    --TERCIARY: #93c5fd;    /* Azul claro / pastel para acentos */
+    --BORDENAV: #e2e8f0;    /* Gris neutro claro para bordes */
     --WHITE: #ffffff;
+    --BG-GENERAL: #f4f6f9;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: var(--BG-GENERAL); /* Aplicamos la variable global al fondo */
 }
 
 /* INFORMACIÓN DE ESTILO DE EL NAV */
@@ -84,6 +92,7 @@
     background-color: var(--PRIMARY);
     border: none;
     transition: background-color 0.2s ease;
+    
 }
 
 .btn-purple:hover {
@@ -201,14 +210,11 @@
 
 /* --- BANNER DE CABECERA DEL CURSO --- */
 .curso-header-banner {
-    /* El linear-gradient crea una capa oscura semitransparente sobre la imagen */
-    /* Reemplaza 'URL_DE_TU_IMAGEN.jpg' con la ruta real de la foto que quieras usar */
-    background: linear-gradient(rgba(30, 30, 40, 0.6), rgba(30, 30, 40, 0.85)), 
-                url('https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80');
+    background: linear-gradient(135deg, var(--PRIMARY), var(--SECONDARY));
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    min-height: 250px; /* Altura mínima del banner */
+    min-height: 250px;
 }
 
 /* --- ESTILOS PARA LA PANTALLA DE PERFIL --- */
@@ -284,3 +290,11 @@
     justify-content: center;
     flex-shrink: 0; 
 }
+
+/* --- DEGRADADOS AUTOMÁTICOS PARA CURSOS SIN PORTADA --- */
+.curso-gradiente-1, .curso-grad-1 { background: linear-gradient(135deg, var(--PRIMARY), var(--TERCIARY)); }
+.curso-gradiente-2, .curso-grad-2 { background: linear-gradient(135deg, #0984e3, #74b9ff); }
+.curso-gradiente-3, .curso-grad-3 { background: linear-gradient(135deg, #00b894, #55efc4); }
+.curso-gradiente-4, .curso-grad-4 { background: linear-gradient(135deg, #e84393, #fd79a8); }
+.curso-gradiente-5, .curso-grad-5 { background: linear-gradient(135deg, #6c5ce7, #0984e3); }
+.curso-grad-6 { background: linear-gradient(135deg, #d63031, #ff7675); }

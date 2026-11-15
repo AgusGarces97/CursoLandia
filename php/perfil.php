@@ -18,7 +18,7 @@
     $resultado = mysqli_query($conexion, $sql_usuario);
     $usuario = mysqli_fetch_assoc($resultado);
 
-    // 2. Consultamos las etiquetas de interés del usuario actual
+    // 2. Consultamos las etiquetas de interés del usuario actual (para verificar cuáles marcar por defecto)
     $sql_intereses_usuario = "
         SELECT e.id_etiqueta, e.nombre 
         FROM usuario_intereses ui 
@@ -27,10 +27,26 @@
         ORDER BY e.nombre ASC
     ";
     $resultado_intereses = mysqli_query($conexion, $sql_intereses_usuario);
+    $intereses_usuario_actual = [];
+    while ($int_row = mysqli_fetch_assoc($resultado_intereses)) {
+        $intereses_usuario_actual[] = $int_row['nombre'];
+    }
 
-    // 3. Consultamos todas las etiquetas del sistema para las sugerencias del buscador
+    // 3. Consultamos todas las etiquetas del sistema para pasarlas al modal
     $sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
     $resultado_todas_etiquetas = mysqli_query($conexion, $sql_todas_etiquetas);
+    $todas_etiquetas_arr = [];
+    if ($resultado_todas_etiquetas) {
+        while($tag = mysqli_fetch_assoc($resultado_todas_etiquetas)) {
+            $todas_etiquetas_arr[] = $tag['nombre'];
+        }
+    }
+
+    // 4. Determinar la ruta del avatar a mostrar
+    $ruta_avatar = "https://ui-avatars.com/api/?name=" . urlencode($usuario['nombre'] . '+' . $usuario['apellido']) . "&background=ffffff&color=6c5ce7&size=150";
+    if(!empty($usuario['imagen_perfil']) && $usuario['imagen_perfil'] !== 'default_avatar.png'){
+        $ruta_avatar = '../uploads/perfiles/' . htmlspecialchars($usuario['imagen_perfil']);
+    }
 
     $titulo_pagina = 'Perfil - Cursolandia';
     $ruta = '../'; 
@@ -42,15 +58,12 @@
         <!-- BANNER DE PERFIL -->
         <section class="perfil-banner rounded-4 shadow-sm mb-5 p-4 p-md-5 d-flex align-items-center">
             <div class="d-flex align-items-center gap-4 w-100">
-                <!-- Foto de Perfil Dinámica (Usa la inicial del nombre real) -->
                 <div class="position-relative">
-                    <img src="https://ui-avatars.com/api/?name=<?php echo urlencode($usuario['nombre'] . '+' . $usuario['apellido']); ?>&background=ffffff&color=6c5ce7&size=150" alt="Foto de Perfil" class="rounded-circle border border-4 border-white shadow-sm perfil-img">
+                    <img src="<?php echo $ruta_avatar; ?>" alt="Foto de Perfil" class="rounded-circle border border-4 border-white shadow-sm perfil-img" style="width: 150px; height: 150px; object-fit: cover;">
                 </div>
                 
-                <!-- Información del Usuario -->
                 <div class="text-white">
                     <h2 class="fw-bold mb-1"><?php echo htmlspecialchars($usuario['nombre'] . ' ' . $usuario['apellido']); ?></h2>
-                    <p class="mb-0 fs-5 opacity-75">Rol: <?php echo ucfirst($usuario['rol']); ?></p>
                     <div class="d-flex align-items-center gap-2 mt-2">
                         <?php if($usuario['plan'] == 'pro'): ?>
                             <span class="badge bg-warning text-dark px-3 py-2 border-0">
@@ -63,8 +76,6 @@
                             <?php endif; ?>
                         <?php else: ?>
                             <span class="badge bg-white text-primary px-3 py-2 border-0">Plan Gratuito</span>
-                            
-                            <!-- Enlace al formulario de solicitud con comprobante -->
                             <a href="solicitarPro.php" class="btn btn-warning btn-sm fw-bold border-0 shadow-sm px-3 py-2 ms-2">
                                 <i class="bi bi-rocket-takeoff-fill me-1"></i>Solicitar Plan Pro
                             </a>
@@ -77,7 +88,7 @@
         <!-- SECCIÓN DE DATOS Y FORMULARIO -->
         <section class="bg-white rounded-4 shadow-sm p-4 p-lg-5 border">
             
-            <!-- BLOQUE DE ALERTAS -->
+            <!-- BLOQUE DE ALERTAS (Perfil, Solicitudes Pro y Contraseña) -->
             <?php if(isset($_GET['editado']) && $_GET['editado'] == 'exito'): ?>
                 <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
                     <i class="bi bi-check-circle-fill me-2"></i><strong>¡Perfil actualizado!</strong> Tus datos e intereses se guardaron correctamente.
@@ -88,9 +99,24 @@
                     <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Ocurrió un error.</strong> No se pudieron guardar los cambios.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
+            <?php elseif(isset($_GET['pass']) && $_GET['pass'] == 'exito'): ?>
+                <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-shield-check me-2"></i><strong>¡Contraseña actualizada!</strong> Tu nueva clave fue guardada correctamente.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif(isset($_GET['pass']) && $_GET['pass'] == 'actual_incorrecta'): ?>
+                <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Error:</strong> La contraseña actual ingresada es incorrecta.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            <?php elseif(isset($_GET['pass']) && $_GET['pass'] == 'no_coinciden'): ?>
+                <div class="alert alert-warning alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
+                    <i class="bi bi-exclamation-circle-fill me-2"></i><strong>Atención:</strong> La nueva contraseña y su confirmación no coinciden.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
             <?php elseif(isset($_GET['solicitud']) && $_GET['solicitud'] == 'enviada'): ?>
                 <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4" role="alert">
-                    <i class="bi bi-check-circle-fill me-2"></i><strong>¡Solicitud enviada!</strong> Tu pedido para pasar al Plan Pro fue registrado y está en revisión por el administrador.
+                    <i class="bi bi-check-circle-fill me-2"></i><strong>¡Solicitud enviada!</strong> Tu pedido para pasar al Plan Pro fue registrado y está en revisión.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             <?php elseif(isset($_GET['solicitud']) && $_GET['solicitud'] == 'pendiente'): ?>
@@ -100,21 +126,25 @@
                 </div>
             <?php endif; ?>
 
-            <form action="editarPerfil.php" method="POST">
+            <!-- Agregamos enctype="multipart/form-data" para permitir subida de archivos -->
+            <form action="editarPerfil.php" method="POST" enctype="multipart/form-data">
                 
-                <!-- Cabecera de la sección (Título y Botones) -->
+                <!-- Cabecera de la sección -->
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3 border-bottom pb-3">
                     <h3 class="fw-bold mb-0 text-dark">Datos Personales</h3>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-secondary fw-medium">Cambiar Contraseña</button>
-                        <button type="submit" class="btn btn-purple fw-medium" name="botonEditarPerfil">Guardar Cambios</button>
+                        <!-- Botón que abre el Modal de Bootstrap -->
+                        <button type="button" class="btn btn-outline-secondary fw-medium" data-bs-toggle="modal" data-bs-target="#modalCambiarPassword">
+                            <i class="bi bi-key-fill me-1"></i>Cambiar Contraseña
+                        </button>
+                        <button type="submit" class="btn btn-purple fw-medium text-white" name="botonEditarPerfil">Guardar Cambios</button>
                     </div>
                 </div>
 
-                <!-- Formulario dividido en 3 columnas -->
+                <!-- Formulario en 3 columnas -->
                 <div class="row g-4">
                     
-                    <!-- COLUMNA 1: Datos Personales (Inputs) -->
+                    <!-- COLUMNA 1: Datos Personales -->
                     <div class="col-lg-4">
                         <div class="row g-3">
                             <div class="col-sm-6">
@@ -137,6 +167,11 @@
                                 <label for="email" class="form-label fw-medium text-dark">Email</label>
                                 <input type="email" class="form-control custom-input bg-light text-muted" id="email" value="<?php echo htmlspecialchars($usuario['email']); ?>" readonly>
                             </div>
+                            <!-- Botón para imagen de perfil -->
+                            <div class="col-12 mt-3 border-top pt-3">
+                                <label for="imagen_perfil" class="form-label fw-medium text-dark">Cambiar Foto de Perfil</label>
+                                <input type="file" class="form-control custom-input" id="imagen_perfil" name="imagen_perfil" accept="image/jpeg, image/png, image/webp">
+                            </div>
                         </div>
                     </div>
 
@@ -146,32 +181,21 @@
                         <textarea class="form-control custom-input" id="antecedentes" name="antecedentes" rows="8" placeholder="Escribe tu trayectoria, conocimientos previos o experiencia..."><?php echo htmlspecialchars($usuario['antecedentes'] ?? ''); ?></textarea>
                     </div>
 
-                    <!-- COLUMNA 3: Intereses Dinámicos (Buscador y Etiquetas Elegidas) -->
+                    <!-- COLUMNA 3: Intereses mediante Modal -->
                     <div class="col-lg-4">
-                        <label for="buscadorEtiquetas" class="form-label fw-medium text-dark">Intereses</label>
+                        <label class="form-label fw-medium text-dark">Intereses</label>
                         
-                        <!-- Buscador de Etiquetas con Sugerencias Datalist -->
-                        <div class="position-relative mb-3">
-                            <input type="text" class="form-control custom-input text-center" id="buscadorEtiquetas" list="listaSugerencias" placeholder="Buscador de Etiquetas (Presiona Enter para agregar)" autocomplete="off">
-                            <datalist id="listaSugerencias">
-                                <?php while($etiqueta = mysqli_fetch_assoc($resultado_todas_etiquetas)): ?>
-                                    <option value="<?php echo htmlspecialchars($etiqueta['nombre']); ?>"></option>
-                                <?php endwhile; ?>
-                            </datalist>
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
+                                <i class="bi bi-tags-fill me-2"></i>Seleccionar Intereses
+                            </button>
                         </div>
                         
-                        <!-- Caja de Etiquetas Elegidas (Generadas Dinámicamente) -->
                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap align-content-start gap-2" style="min-height: 140px;">
-                            <?php while($int = mysqli_fetch_assoc($resultado_intereses)): ?>
-                                <span class="badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta">
-                                    #<?php echo htmlspecialchars($int['nombre']); ?>
-                                    <input type="hidden" name="etiquetas[]" value="<?php echo htmlspecialchars($int['nombre']); ?>">
-                                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
-                                </span>
-                            <?php endwhile; ?>
+                            <!-- Se rellena dinámicamente con JS según las casillas marcadas -->
                         </div>
                         <div class="form-text mt-2" style="font-size: 0.75rem;">
-                            Escribe una etiqueta y presiona Enter o selecciónala del menú para añadirla.
+                            Haz clic en el botón superior para seleccionar tus temas de interés desde la base de datos.
                         </div>
                     </div>
 
@@ -181,56 +205,128 @@
         </section>
     </main>
 
-    <!-- SCRIPT DE INTERACCIÓN DE ETIQUETAS -->
+    <!-- MODAL BOOTSTRAP PARA SELECCIONAR INTERESES / ETIQUETAS -->
+    <div class="modal fade" id="modalEtiquetas" tabindex="-1" aria-labelledby="modalEtiquetasLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-dark" id="modalEtiquetasLabel">
+                        <i class="bi bi-tags color-logo me-2"></i>Seleccionar Intereses
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que reflejen tus intereses:</p>
+                    <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
+                        <?php if (count($todas_etiquetas_arr) > 0): ?>
+                            <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
+                                $is_checked = in_array($nombre_tag, $intereses_usuario_actual) ? 'checked' : '';
+                            ?>
+                                <div class="col-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" name="etiquetas[]" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_user_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
+                                        <label class="form-check-label text-dark" for="tag_user_<?php echo md5($nombre_tag); ?>">
+                                            #<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>
+                                        </label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="col-12 text-center text-muted py-3">
+                                No hay etiquetas registradas en la base de datos.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-purple fw-bold px-4 text-white" data-bs-dismiss="modal">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL BOOTSTRAP PARA CAMBIAR CONTRASEÑA -->
+    <div class="modal fade" id="modalCambiarPassword" tabindex="-1" aria-labelledby="modalCambiarPasswordLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-dark" id="modalCambiarPasswordLabel">
+                        <i class="bi bi-shield-lock color-logo me-2"></i>Cambiar Contraseña
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <form action="editarPerfil.php" method="POST">
+                    <div class="modal-body p-4">
+                        <div class="mb-3">
+                            <label for="password_actual" class="form-label fw-medium text-dark">Contraseña Actual <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control custom-input" id="password_actual" name="password_actual" placeholder="Tu clave actual..." required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password_nueva" class="form-label fw-medium text-dark">Nueva Contraseña <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control custom-input" id="password_nueva" name="password_nueva" placeholder="Mínimo 6 caracteres..." required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="password_confirmar" class="form-label fw-medium text-dark">Confirmar Nueva Contraseña <span class="text-danger">*</span></label>
+                            <input type="password" class="form-control custom-input" id="password_confirmar" name="password_confirmar" placeholder="Repite la nueva contraseña..." required>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer border-top p-3">
+                        <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-purple fw-bold px-4 text-white" name="botonCambiarPassword">Actualizar Clave</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT DE SINCRONIZACIÓN DE INTERESES CON EL MODAL -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const inputEtiqueta = document.getElementById('buscadorEtiquetas');
-            const contenedor = document.getElementById('contenedorEtiquetas');
+            const checkboxesEtiquetas = document.querySelectorAll('.checkbox-etiqueta');
+            const contenedorEtiquetas = document.getElementById('contenedorEtiquetas');
 
-            function agregarEtiqueta(nombre) {
-                let textoLimpio = nombre.trim().replace(/^#+/, '');
-                if (textoLimpio === '') return;
+            function actualizarBadges() {
+                contenedorEtiquetas.innerHTML = '';
+                const seleccionadas = Array.from(checkboxesEtiquetas).filter(cb => cb.checked);
 
-                // Evitamos duplicados en la caja
-                const etiquetasExistentes = Array.from(contenedor.querySelectorAll('input[name="etiquetas[]"]'))
-                    .map(inp => inp.value.toLowerCase());
-
-                if (etiquetasExistentes.includes(textoLimpio.toLowerCase())) {
-                    inputEtiqueta.value = '';
+                if (seleccionadas.length === 0) {
+                    contenedorEtiquetas.innerHTML = '<span class="text-muted small fst-italic">Ningún interés seleccionado.</span>';
                     return;
                 }
 
-                // Creamos el elemento Badge dinámico con su input hidden para el POST
-                const badge = document.createElement('span');
-                badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
-                badge.innerHTML = `
-                    #${textoLimpio}
-                    <input type="hidden" name="etiquetas[]" value="${textoLimpio}">
-                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
-                `;
-
-                contenedor.appendChild(badge);
-                inputEtiqueta.value = '';
+                seleccionadas.forEach(cb => {
+                    const tagName = cb.value;
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
+                    badge.innerHTML = `
+                        #${tagName}
+                        <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover" data-value="${tagName}"></button>
+                    `;
+                    contenedorEtiquetas.appendChild(badge);
+                });
             }
 
-            // Agregar al presionar Enter o seleccionar opción del datalist
-            inputEtiqueta.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    agregarEtiqueta(this.value);
-                }
+            checkboxesEtiquetas.forEach(cb => {
+                cb.addEventListener('change', actualizarBadges);
             });
 
-            inputEtiqueta.addEventListener('change', function() {
-                agregarEtiqueta(this.value);
-            });
-
-            // Delegación de eventos para eliminar etiquetas haciendo clic en la 'X'
-            contenedor.addEventListener('click', function(e) {
+            contenedorEtiquetas.addEventListener('click', function(e) {
                 if (e.target.classList.contains('btn-remover-etiqueta')) {
-                    e.target.closest('.item-etiqueta').remove();
+                    const tagName = e.target.getAttribute('data-value');
+                    const cb = Array.from(checkboxesEtiquetas).find(item => item.value === tagName);
+                    if (cb) {
+                        cb.checked = false;
+                        actualizarBadges();
+                    }
                 }
             });
+
+            // Inicializar al cargar la página con los intereses actuales del usuario
+            actualizarBadges();
         });
     </script>
 

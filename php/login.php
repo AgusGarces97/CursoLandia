@@ -22,22 +22,22 @@ if(isset($_POST['botonLogin'])){
     if(mysqli_num_rows($resultado) > 0){
         $usuario = mysqli_fetch_array($resultado);
 
-        if($passwordUsuario === $usuario['password']){
-        $_SESSION['id_usuario'] = $usuario['id_usuario'];
-        $_SESSION['nombre'] = $usuario['nombre'];
-        $_SESSION['apellido'] = $usuario['apellido'];
-        $_SESSION['rol'] = $usuario['rol'];
-        $_SESSION['plan'] = $usuario['plan'];
+        // Verificamos la contraseña en texto plano frente al hash de la base de datos
+        if(password_verify($passwordUsuario, $usuario['password'])){
+            $_SESSION['id_usuario'] = $usuario['id_usuario'];
+            $_SESSION['nombre'] = $usuario['nombre'];
+            $_SESSION['apellido'] = $usuario['apellido'];
+            $_SESSION['rol'] = $usuario['rol'];
+            $_SESSION['plan'] = $usuario['plan'];
 
-        header('Location: ../index.php');
-        exit();
+            header('Location: ../index.php');
+            exit();
         }else{
             $mensaje = "La Contraseña es incorrecta";
         }
     }else{
         $mensaje = "No existe una cuenta con ese email";
     }
-
 
 }
 
@@ -59,14 +59,14 @@ require_once 'header.php';
         <!-- Alerta de error -->
         <?php if ($mensaje != ''): ?>
             <div class="alert alert-danger p-2 text-center" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-1"></i> <?php echo $mensaje_error; ?>
+                <i class="bi bi-exclamation-triangle-fill me-1"></i> <?php echo $mensaje; ?>
             </div>
         <?php endif; ?>
 
         <form action="login.php" method="POST">
             <div class="mb-3">
                 <label for="emailUsuario" class="form-label fw-medium text-dark">Correo Electrónico</label>
-                <input type="email" class="form-control custom-input" id="emailUsuario" name="emailUsuario" required placeholder="ejemplo@correo.com">
+                <input type="text" class="form-control custom-input" id="emailUsuario" name="emailUsuario" required placeholder="ejemplo@correo.com">
             </div>
             
             <div class="mb-4">
@@ -74,7 +74,7 @@ require_once 'header.php';
                 <input type="password" class="form-control custom-input" id="passwordUsuario" name="passwordUsuario" required placeholder="••••••••">
             </div>
 
-            <button type="submit" class="btn btn-purple w-100 fw-bold py-2 mb-3" name="botonLogin">Iniciar Sesión</button>
+            <button type="submit" class="btn btn-purple w-100 fw-bold py-2 mb-3 text-white" name="botonLogin">Iniciar Sesión</button>
             
             <div class="text-center">
                 <!-- Enlace hacia tu archivo register.php -->
