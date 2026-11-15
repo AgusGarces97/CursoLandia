@@ -11,6 +11,42 @@
     }
 
     $idUsuario = (int)$_SESSION['id_usuario'];
+    $mensaje_feedback = '';
+
+    // LÓGICA PARA ELIMINAR UN CURSO PROPIO
+    if (isset($_POST['id_curso_a_borrar'])) {
+        $id_curso_borrar = (int)$_POST['id_curso_a_borrar'];
+
+        // Verificamos que el curso pertenezca al usuario logueado antes de borrar
+        $sql_verif = "SELECT id_curso, imagen FROM cursos WHERE id_curso = $id_curso_borrar AND id_creador = $idUsuario";
+        $res_verif = mysqli_query($conexion, $sql_verif);
+
+        if ($res_verif && mysqli_num_rows($res_verif) > 0) {
+            $curso_datos = mysqli_fetch_assoc($res_verif);
+            
+            // Borramos la imagen física de portada si existe
+            if (!empty($curso_datos['imagen']) && file_exists('../uploads/cursos/' . $curso_datos['imagen'])) {
+                unlink('../uploads/cursos/' . $curso_datos['imagen']);
+            }
+
+            // Eliminamos relaciones dependientes (etiquetas e inscripciones) y el curso
+            mysqli_query($conexion, "DELETE FROM curso_etiquetas WHERE id_curso = $id_curso_borrar");
+            mysqli_query($conexion, "DELETE FROM inscripciones WHERE id_curso = $id_curso_borrar");
+            
+            $sql_delete = "DELETE FROM cursos WHERE id_curso = $id_curso_borrar AND id_creador = $idUsuario";
+            if (mysqli_query($conexion, $sql_delete)) {
+                $mensaje_feedback = "<div class='alert alert-success alert-dismissible fade show border-0 shadow-sm mb-4' role='alert'>
+                                        <i class='bi bi-check-circle-fill me-2'></i>El curso ha sido eliminado exitosamente.
+                                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                                     </div>";
+            } else {
+                $mensaje_feedback = "<div class='alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4' role='alert'>
+                                        <i class='bi bi-exclamation-triangle-fill me-2'></i>Hubo un error al intentar eliminar el curso.
+                                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
+                                     </div>";
+            }
+        }
+    }
 
     // OBTENEMOS LAS INSCRIPCIONES PARA LA PESTAÑA 2
     $sql_mis_inscripciones = "
@@ -42,10 +78,12 @@
 
     <main class="container my-5" style="min-height: 70vh;">
         
+        <?php echo $mensaje_feedback; ?>
+
         <!-- Cabecera de la sección -->
         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-4 pb-3 border-bottom gap-3">
             <h2 class="fw-bold text-dark mb-0">Gestión de Cursos</h2>
-            <a href="nuevoCurso.php" class="btn btn-purple fw-medium shadow-sm">
+            <a href="nuevoCurso.php" class="btn btn-purple fw-medium shadow-sm text-white">
                 <i class="bi bi-plus-lg me-2"></i>Crear Nuevo Curso
             </a>
         </div>
@@ -152,14 +190,20 @@
                             echo '<div class="col">
                                 <div class="card h-100 border-0 shadow-sm rounded-4 curso-card-hover">
                                     ' . $portada_html . '
-                                    <div class="card-body p-4">
+                                    <div class="card-body p-4 d-flex flex-column">
                                         <div class="d-flex justify-content-between align-items-start mb-2">
                                             <span class="badge ' . $badge_estado . '">' . $estado_texto .'</span>
                                             <span class="badge bg-light text-dark border">' . $privacidad .'</span>
                                         </div>
                                         <h5 class="fw-bold text-dark mb-1">'. htmlspecialchars($curso['titulo']) .'</h5>
                                         <p class="text-muted small mb-3"><i class="bi bi-people-fill me-1"></i>'. $curso['total_alumnos'] .' / '. $cupoTexto .' Alumnos</p>
-                                        <a href="editarCurso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">' . $texto_boton . '</a>
+                                        
+                                        <div class="mt-auto d-flex gap-2">
+                                            <a href="editarCurso.php?id='. $curso['id_curso'] .'" class="btn btn-outline-secondary w-100 fw-medium">' . $texto_boton . '</a>
+                                            <button type="button" class="btn btn-outline-danger px-3" data-bs-toggle="modal" data-bs-target="#modalBorrarCurso" data-idcurso="'. $curso['id_curso'] .'" data-titulocurso="'. htmlspecialchars($curso['titulo'], ENT_QUOTES) .'" title="Eliminar Curso">
+                                                <i class="bi bi-trash-fill"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>';
@@ -206,7 +250,7 @@
                                             <img src="../uploads/cursos/<?php echo htmlspecialchars($inscripcion['imagen']); ?>" alt="<?php echo htmlspecialchars($inscripcion['titulo']); ?>" class="w-100 h-100" style="object-fit: cover;">
                                         <?php endif; ?>
                                     </div>
-                                    <div class="card-body p-4">
+                                    <div class="card-body p-4 d-flex flex-column">
                                         <div class="d-flex flex-wrap gap-1 mb-2">
                                             <?php if ($inscripcion['estado_inscripcion'] === 'aceptada'): ?>
                                                 <span class="badge bg-success"><i class="bi bi-check-circle-fill me-1"></i>Inscripto</span>
@@ -228,7 +272,7 @@
                                         </div>
                                         <h5 class="fw-bold text-dark mb-1"><?php echo htmlspecialchars($inscripcion['titulo']); ?></h5>
                                         <p class="text-muted small mb-3">Docente: <span class="fw-medium"><?php echo htmlspecialchars($inscripcion['profe_nombre'] . ' ' . $inscripcion['profe_apellido']); ?></span></p>
-                                        <a href="curso.php?id=<?php echo $inscripcion['id_curso']; ?>" class="btn btn-purple w-100 fw-medium">Entrar al Curso</a>
+                                        <a href="curso.php?id=<?php echo $inscripcion['id_curso']; ?>" class="btn btn-purple w-100 fw-medium text-white mt-auto">Entrar al Curso</a>
                                     </div>
                                 </div>
                             </div>
@@ -248,5 +292,52 @@
 
         </div>
     </main>
+
+    <!-- MODAL DE CONFIRMACIÓN PARA BORRAR CURSO -->
+    <div class="modal fade" id="modalBorrarCurso" tabindex="-1" aria-labelledby="modalBorrarCursoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4 text-dark">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-danger" id="modalBorrarCursoLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Eliminar Curso
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="misCursos.php" method="POST">
+                    <div class="modal-body p-4 text-center">
+                        <input type="hidden" name="id_curso_a_borrar" id="inputCursoIdBorrar">
+                        <i class="bi bi-trash3 text-danger display-4 mb-3 d-block"></i>
+                        <h5 class="fw-bold text-dark mb-2">¿Estás seguro de eliminar este curso?</h5>
+                        <p class="text-muted small mb-2">Se borrará permanentemente el curso <strong id="nombreCursoBorrar" class="text-dark"></strong> y se cancelarán las inscripciones asociadas.</p>
+                        <p class="text-danger small mb-0 fw-medium">Esta acción no se puede deshacer.</p>
+                    </div>
+                    <div class="modal-footer border-top p-3 d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-light border fw-medium px-4" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-danger fw-bold px-4">Sí, eliminar curso</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script para pasar dinámicamente los datos del curso al modal -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const modalBorrar = document.getElementById('modalBorrarCurso');
+            if (modalBorrar) {
+                modalBorrar.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    const idCurso = button.getAttribute('data-idcurso');
+                    const tituloCurso = button.getAttribute('data-titulocurso');
+
+                    const inputId = modalBorrar.querySelector('#inputCursoIdBorrar');
+                    const spanTitulo = modalBorrar.querySelector('#nombreCursoBorrar');
+
+                    inputId.value = idCurso;
+                    spanTitulo.textContent = '"' + tituloCurso + '"';
+                });
+            }
+        });
+    </script>
 
 <?php require_once 'footer.php'; ?>

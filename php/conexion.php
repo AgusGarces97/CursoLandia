@@ -1,13 +1,23 @@
 <?php
 
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-
+/*
 $dbHost = 'localhost';
 $dbUsuario = 'usuario_admin';
 $dbPassword = 'admin';
 $db = 'cursolandia_db';
 
-$conexion = mysqli_connect($dbHost, $dbUsuario, $dbPassword, $db);
+$conexion = mysqli_connect($dbHost, $dbUsuario, $dbPassword, $db); */
+
+$config = require __DIR__ . '/config.php';
+
+$conexion = mysqli_connect(
+    $config['host'],
+    $config['user'],
+    $config['password'],
+    $config['dbname'],
+    $config['port']
+);
 
 // Verificar si hubo algún error
 if (!$conexion) {

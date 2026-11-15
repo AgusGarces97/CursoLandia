@@ -18,7 +18,7 @@
     $resultado = mysqli_query($conexion, $sql_usuario);
     $usuario = mysqli_fetch_assoc($resultado);
 
-    // 2. Consultamos las etiquetas de interés del usuario actual
+    // 2. Consultamos las etiquetas de interés del usuario actual (para verificar cuáles marcar por defecto)
     $sql_intereses_usuario = "
         SELECT e.id_etiqueta, e.nombre 
         FROM usuario_intereses ui 
@@ -27,10 +27,20 @@
         ORDER BY e.nombre ASC
     ";
     $resultado_intereses = mysqli_query($conexion, $sql_intereses_usuario);
+    $intereses_usuario_actual = [];
+    while ($int_row = mysqli_fetch_assoc($resultado_intereses)) {
+        $intereses_usuario_actual[] = $int_row['nombre'];
+    }
 
-    // 3. Consultamos todas las etiquetas del sistema para las sugerencias del buscador
+    // 3. Consultamos todas las etiquetas del sistema para pasarlas al modal
     $sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
     $resultado_todas_etiquetas = mysqli_query($conexion, $sql_todas_etiquetas);
+    $todas_etiquetas_arr = [];
+    if ($resultado_todas_etiquetas) {
+        while($tag = mysqli_fetch_assoc($resultado_todas_etiquetas)) {
+            $todas_etiquetas_arr[] = $tag['nombre'];
+        }
+    }
 
     // 4. Determinar la ruta del avatar a mostrar
     $ruta_avatar = "https://ui-avatars.com/api/?name=" . urlencode($usuario['nombre'] . '+' . $usuario['apellido']) . "&background=ffffff&color=6c5ce7&size=150";
@@ -54,7 +64,6 @@
                 
                 <div class="text-white">
                     <h2 class="fw-bold mb-1"><?php echo htmlspecialchars($usuario['nombre'] . ' ' . $usuario['apellido']); ?></h2>
-                    <p class="mb-0 fs-5 opacity-75">Rol: <?php echo ucfirst($usuario['rol']); ?></p>
                     <div class="d-flex align-items-center gap-2 mt-2">
                         <?php if($usuario['plan'] == 'pro'): ?>
                             <span class="badge bg-warning text-dark px-3 py-2 border-0">
@@ -128,7 +137,7 @@
                         <button type="button" class="btn btn-outline-secondary fw-medium" data-bs-toggle="modal" data-bs-target="#modalCambiarPassword">
                             <i class="bi bi-key-fill me-1"></i>Cambiar Contraseña
                         </button>
-                        <button type="submit" class="btn btn-purple fw-medium" name="botonEditarPerfil">Guardar Cambios</button>
+                        <button type="submit" class="btn btn-purple fw-medium text-white" name="botonEditarPerfil">Guardar Cambios</button>
                     </div>
                 </div>
 
@@ -172,30 +181,21 @@
                         <textarea class="form-control custom-input" id="antecedentes" name="antecedentes" rows="8" placeholder="Escribe tu trayectoria, conocimientos previos o experiencia..."><?php echo htmlspecialchars($usuario['antecedentes'] ?? ''); ?></textarea>
                     </div>
 
-                    <!-- COLUMNA 3: Intereses Dinámicos -->
+                    <!-- COLUMNA 3: Intereses mediante Modal -->
                     <div class="col-lg-4">
-                        <label for="buscadorEtiquetas" class="form-label fw-medium text-dark">Intereses</label>
+                        <label class="form-label fw-medium text-dark">Intereses</label>
                         
-                        <div class="position-relative mb-3">
-                            <input type="text" class="form-control custom-input text-center" id="buscadorEtiquetas" list="listaSugerencias" placeholder="Buscador de Etiquetas (Presiona Enter para agregar)" autocomplete="off">
-                            <datalist id="listaSugerencias">
-                                <?php while($etiqueta = mysqli_fetch_assoc($resultado_todas_etiquetas)): ?>
-                                    <option value="<?php echo htmlspecialchars($etiqueta['nombre']); ?>"></option>
-                                <?php endwhile; ?>
-                            </datalist>
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
+                                <i class="bi bi-tags-fill me-2"></i>Seleccionar Intereses
+                            </button>
                         </div>
                         
                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap align-content-start gap-2" style="min-height: 140px;">
-                            <?php while($int = mysqli_fetch_assoc($resultado_intereses)): ?>
-                                <span class="badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta">
-                                    #<?php echo htmlspecialchars($int['nombre']); ?>
-                                    <input type="hidden" name="etiquetas[]" value="<?php echo htmlspecialchars($int['nombre']); ?>">
-                                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
-                                </span>
-                            <?php endwhile; ?>
+                            <!-- Se rellena dinámicamente con JS según las casillas marcadas -->
                         </div>
                         <div class="form-text mt-2" style="font-size: 0.75rem;">
-                            Escribe una etiqueta y presiona Enter o selecciónala del menú para añadirla.
+                            Haz clic en el botón superior para seleccionar tus temas de interés desde la base de datos.
                         </div>
                     </div>
 
@@ -204,6 +204,46 @@
 
         </section>
     </main>
+
+    <!-- MODAL BOOTSTRAP PARA SELECCIONAR INTERESES / ETIQUETAS -->
+    <div class="modal fade" id="modalEtiquetas" tabindex="-1" aria-labelledby="modalEtiquetasLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-dark" id="modalEtiquetasLabel">
+                        <i class="bi bi-tags color-logo me-2"></i>Seleccionar Intereses
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que reflejen tus intereses:</p>
+                    <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
+                        <?php if (count($todas_etiquetas_arr) > 0): ?>
+                            <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
+                                $is_checked = in_array($nombre_tag, $intereses_usuario_actual) ? 'checked' : '';
+                            ?>
+                                <div class="col-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" name="etiquetas[]" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_user_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
+                                        <label class="form-check-label text-dark" for="tag_user_<?php echo md5($nombre_tag); ?>">
+                                            #<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>
+                                        </label>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="col-12 text-center text-muted py-3">
+                                No hay etiquetas registradas en la base de datos.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-purple fw-bold px-4 text-white" data-bs-dismiss="modal">Aceptar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- MODAL BOOTSTRAP PARA CAMBIAR CONTRASEÑA -->
     <div class="modal fade" id="modalCambiarPassword" tabindex="-1" aria-labelledby="modalCambiarPasswordLabel" aria-hidden="true">
@@ -236,59 +276,57 @@
                     
                     <div class="modal-footer border-top p-3">
                         <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-purple fw-bold px-4" name="botonCambiarPassword">Actualizar Clave</button>
+                        <button type="submit" class="btn btn-purple fw-bold px-4 text-white" name="botonCambiarPassword">Actualizar Clave</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- SCRIPT DE INTERACCIÓN DE ETIQUETAS -->
+    <!-- SCRIPT DE SINCRONIZACIÓN DE INTERESES CON EL MODAL -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const inputEtiqueta = document.getElementById('buscadorEtiquetas');
-            const contenedor = document.getElementById('contenedorEtiquetas');
+            const checkboxesEtiquetas = document.querySelectorAll('.checkbox-etiqueta');
+            const contenedorEtiquetas = document.getElementById('contenedorEtiquetas');
 
-            function agregarEtiqueta(nombre) {
-                let textoLimpio = nombre.trim().replace(/^#+/, '');
-                if (textoLimpio === '') return;
+            function actualizarBadges() {
+                contenedorEtiquetas.innerHTML = '';
+                const seleccionadas = Array.from(checkboxesEtiquetas).filter(cb => cb.checked);
 
-                const etiquetasExistentes = Array.from(contenedor.querySelectorAll('input[name="etiquetas[]"]'))
-                    .map(inp => inp.value.toLowerCase());
-
-                if (etiquetasExistentes.includes(textoLimpio.toLowerCase())) {
-                    inputEtiqueta.value = '';
+                if (seleccionadas.length === 0) {
+                    contenedorEtiquetas.innerHTML = '<span class="text-muted small fst-italic">Ningún interés seleccionado.</span>';
                     return;
                 }
 
-                const badge = document.createElement('span');
-                badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
-                badge.innerHTML = `
-                    #${textoLimpio}
-                    <input type="hidden" name="etiquetas[]" value="${textoLimpio}">
-                    <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover"></button>
-                `;
-
-                contenedor.appendChild(badge);
-                inputEtiqueta.value = '';
+                seleccionadas.forEach(cb => {
+                    const tagName = cb.value;
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
+                    badge.innerHTML = `
+                        #${tagName}
+                        <button type="button" class="btn-close btn-remover-etiqueta" style="font-size: 0.5rem;" aria-label="Remover" data-value="${tagName}"></button>
+                    `;
+                    contenedorEtiquetas.appendChild(badge);
+                });
             }
 
-            inputEtiqueta.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    agregarEtiqueta(this.value);
-                }
+            checkboxesEtiquetas.forEach(cb => {
+                cb.addEventListener('change', actualizarBadges);
             });
 
-            inputEtiqueta.addEventListener('change', function() {
-                agregarEtiqueta(this.value);
-            });
-
-            contenedor.addEventListener('click', function(e) {
+            contenedorEtiquetas.addEventListener('click', function(e) {
                 if (e.target.classList.contains('btn-remover-etiqueta')) {
-                    e.target.closest('.item-etiqueta').remove();
+                    const tagName = e.target.getAttribute('data-value');
+                    const cb = Array.from(checkboxesEtiquetas).find(item => item.value === tagName);
+                    if (cb) {
+                        cb.checked = false;
+                        actualizarBadges();
+                    }
                 }
             });
+
+            // Inicializar al cargar la página con los intereses actuales del usuario
+            actualizarBadges();
         });
     </script>
 

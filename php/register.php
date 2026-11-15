@@ -126,7 +126,7 @@
                 <textarea class="form-control custom-input" id="antecedentes" name="antecedentesUsuario" rows="3" placeholder="Cuéntanos sobre tu experiencia o conocimientos previos..."></textarea>
             </div>
 
-            <button type="submit" class="btn btn-purple w-100 fw-bold py-2 mb-3" name="botonCrearCuenta">Crear Cuenta</button>
+            <button type="submit" class="btn btn-purple w-100 fw-bold py-2 mb-3 text-white" name="botonCrearCuenta">Crear Cuenta</button>
             
             <div class="text-center">
                 <span class="text-muted small">¿Ya tienes una cuenta? <a href="login.php" class="text-decoration-none fw-medium" style="color: var(--PRIMARY);">Ingresa acá</a></span>

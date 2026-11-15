@@ -212,17 +212,25 @@ require_once 'header.php';
                 <?php echo $mensaje; ?>
 
                 <?php if($limite_gratis_alcanzado && !isset($_POST['botonCrearCurso'])): ?>
-                    <div class="alert alert-warning text-center fw-medium mb-4" role="alert">
+                    <div class="alert alert-warning text-center fw-medium mb-4 shadow-sm border-0" role="alert">
                         <i class="bi bi-info-circle-fill me-2"></i>
                         Tienes 3 cursos activos o programados (límite Plan Gratuito). Solo podrás guardar este nuevo curso en modo <strong>Borrador</strong>.
                     </div>
                 <?php endif; ?>
 
-                <!-- Tarjeta del Formulario -->
-                <div class="card shadow-sm border-0 rounded-4">
+                <!-- Tarjeta del Formulario con Header Decorativo y Colorido -->
+                <div class="card shadow-sm border-0 rounded-4 bg-white overflow-hidden">
                     
-                    <div class="card-header bg-white border-bottom py-4 px-4 px-lg-5">
-                        <h3 class="fw-bold mb-0 text-dark">Crear Nuevo Curso</h3>
+                    <div class="card-header text-white p-4 px-lg-5" style="background: linear-gradient(135deg, var(--PRIMARY), var(--SECONDARY));">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="bg-white bg-opacity-25 p-3 rounded-3 text-white fs-4 d-flex align-items-center justify-content-center" style="width: 50px; height: 50px;">
+                                <i class="bi bi-journal-plus"></i>
+                            </div>
+                            <div>
+                                <h3 class="fw-bold mb-1 text-white">Crear Nuevo Curso</h3>
+                                <p class="mb-0 text-white opacity-75 small">Completa la información para publicar un nuevo espacio de aprendizaje.</p>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="card-body p-4 p-lg-5">
@@ -233,23 +241,23 @@ require_once 'header.php';
                                 <!-- COLUMNA IZQUIERDA: Textos Principales -->
                                 <div class="col-md-7">
                                     <div class="mb-4">
-                                        <label for="titulo" class="form-label fw-medium text-dark">Título del Curso <span class="text-danger">*</span></label>
+                                        <label for="titulo" class="form-label fw-medium text-dark"><i class="bi bi-fonts text-primary me-1"></i> Título del Curso <span class="text-danger">*</span></label>
                                         <input type="text" class="form-control custom-input" id="titulo" name="titulo" maxlength="100" value="<?php echo htmlspecialchars($titulo_val, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Ej: Desarrollo Web con PHP" required>
                                         <div class="form-text">Máximo 100 caracteres.</div>
                                     </div>
                                     
                                     <div class="mb-4">
-                                        <label for="descripcion" class="form-label fw-medium text-dark">Descripción <span class="text-danger">*</span></label>
+                                        <label for="descripcion" class="form-label fw-medium text-dark"><i class="bi bi-card-text text-primary me-1"></i> Descripción <span class="text-danger">*</span></label>
                                         <textarea class="form-control custom-input" id="descripcion" name="descripcion" rows="6" maxlength="1000" placeholder="Escribe de qué trata el curso..." required><?php echo htmlspecialchars($descripcion_val, ENT_QUOTES, 'UTF-8'); ?></textarea>
                                         <div class="form-text">Máximo 1000 caracteres.</div>
                                     </div>
 
                                     <!-- Selector de Etiquetas mediante Modal -->
                                     <div class="mb-3">
-                                        <label class="form-label fw-medium text-dark">Etiquetas (Opcional)</label>
+                                        <label class="form-label fw-medium text-dark"><i class="bi bi-tags-fill text-primary me-1"></i> Etiquetas (Opcional)</label>
                                         <div class="mb-2">
-                                            <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
-                                                <i class="bi bi-tags-fill me-2"></i>Seleccionar Etiquetas de la Base de Datos
+                                            <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium d-flex align-items-center justify-content-center gap-2" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
+                                                <i class="bi bi-tags"></i> Seleccionar Etiquetas de la Base de Datos
                                             </button>
                                         </div>
 
@@ -263,21 +271,21 @@ require_once 'header.php';
                                 <div class="col-md-5">
                                     
                                     <div class="mb-4">
-                                        <label for="imagen" class="form-label fw-medium text-dark">Imagen de Portada (Opcional)</label>
+                                        <label for="imagen" class="form-label fw-medium text-dark"><i class="bi bi-image-fill text-primary me-1"></i> Imagen de Portada (Opcional)</label>
                                         <input type="file" class="form-control custom-input" id="imagen" name="imagen" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp">
                                         <div class="form-text">JPG, PNG o WEBP (máx. 2 MB). Si no subes una, se asignará un color por defecto.</div>
                                     </div>
 
                                     <div class="row g-3 mb-4">
                                         <div class="col-6">
-                                            <label for="privacidad" class="form-label fw-medium text-dark">Privacidad</label>
+                                            <label for="privacidad" class="form-label fw-medium text-dark"><i class="bi bi-shield-lock text-primary me-1"></i> Privacidad</label>
                                             <select class="form-select custom-input" id="privacidad" name="privacidad">
                                                 <option value="0" <?php echo ($privacidad_val == '0') ? 'selected' : ''; ?>>Público</option>
                                                 <option value="1" <?php echo ($privacidad_val == '1') ? 'selected' : ''; ?>>Privado</option>
                                             </select>
                                         </div>
                                         <div class="col-6">
-                                            <label for="tipo_costo" class="form-label fw-medium text-dark">Modalidad</label>
+                                            <label for="tipo_costo" class="form-label fw-medium text-dark"><i class="bi bi-cash-stack text-primary me-1"></i> Costo</label>
                                             <select class="form-select custom-input" id="tipo_costo" name="tipo_costo">
                                                 <option value="0" <?php echo ($tipo_costo_val == '0') ? 'selected' : ''; ?>>Gratuito</option>
                                                 <option value="1" <?php echo ($tipo_costo_val == '1') ? 'selected' : ''; ?>>De Pago</option>
@@ -286,7 +294,7 @@ require_once 'header.php';
                                         <div class="col-12" id="bloquePrecio" style="<?php echo ($tipo_costo_val == '1') ? '' : 'display: none;'; ?>">
                                             <label for="costo_monto" class="form-label fw-medium text-dark">Precio del Curso (ARS) <span class="text-danger">*</span></label>
                                             <div class="input-group">
-                                                <span class="input-group-text bg-light fw-bold">$</span>
+                                                <span class="input-group-text bg-light fw-bold text-primary">$</span>
                                                 <input type="number" class="form-control custom-input" id="costo_monto" name="costo_monto" min="1" step="0.01" value="<?php echo htmlspecialchars($costo_monto_val, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Ej: 15000.00" <?php echo ($tipo_costo_val == '1') ? 'required' : ''; ?>>
                                             </div>
                                             <div class="form-text">Indica el valor que abonarán los estudiantes para inscribirse.</div>
@@ -294,17 +302,17 @@ require_once 'header.php';
                                     </div>
 
                                     <div class="mb-4">
-                                        <label for="cupo" class="form-label fw-medium text-dark">Cupo máximo (Opcional)</label>
+                                        <label for="cupo" class="form-label fw-medium text-dark"><i class="bi bi-people-fill text-primary me-1"></i> Cupo máximo (Opcional)</label>
                                         <input type="number" class="form-control custom-input" id="cupo" name="cupo" min="1" value="<?php echo htmlspecialchars($cupo_val, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Ej: 30 (Dejar vacío si es sin límite)">
                                     </div>
 
                                     <div class="row g-3 mb-4">
                                         <div class="col-6">
-                                            <label for="fechaInicio" class="form-label fw-medium text-dark">Inicio <span class="text-danger">*</span></label>
+                                            <label for="fechaInicio" class="form-label fw-medium text-dark"><i class="bi bi-calendar-event text-primary me-1"></i> Inicio <span class="text-danger">*</span></label>
                                             <input type="date" class="form-control custom-input" id="fechaInicio" name="fechaInicio" value="<?php echo htmlspecialchars($fechaInicio_val, ENT_QUOTES, 'UTF-8'); ?>" required>
                                         </div>
                                         <div class="col-6">
-                                            <label for="fechaFin" class="form-label fw-medium text-dark">Fin <span class="text-danger">*</span></label>
+                                            <label for="fechaFin" class="form-label fw-medium text-dark"><i class="bi bi-calendar-check text-primary me-1"></i> Fin <span class="text-danger">*</span></label>
                                             <input type="date" class="form-control custom-input" id="fechaFin" name="fechaFin" value="<?php echo htmlspecialchars($fechaFin_val, ENT_QUOTES, 'UTF-8'); ?>" required>
                                         </div>
                                         <div class="col-12 mt-1">
@@ -312,12 +320,12 @@ require_once 'header.php';
                                         </div>
                                     </div>
 
-                                    <div class="mb-3 p-3 bg-light rounded border">
+                                    <div class="mb-3 p-3 bg-light rounded-3 border-start border-primary border-4">
                                         <div class="form-check form-switch">
                                             <input class="form-check-input" type="checkbox" role="switch" id="estadoCurso" name="estadoCurso" value="1" <?php echo $limite_gratis_alcanzado ? 'disabled' : ($estadoCurso_checked ? 'checked' : ''); ?>>
                                             <label class="form-check-label fw-medium text-dark" for="estadoCurso">Publicar como Activo</label>
                                         </div>
-                                        <div class="form-text small mb-0">
+                                        <div class="form-text small mb-0 mt-1">
                                             <?php echo $limite_gratis_alcanzado ? 'Límite de activos alcanzado. Solo puedes guardarlo como borrador.' : 'Si la fecha de inicio es futura, se activará automáticamente ese día.'; ?>
                                         </div>
                                     </div>
@@ -328,8 +336,10 @@ require_once 'header.php';
                             <hr class="my-4 text-muted">
 
                             <div class="d-flex justify-content-end gap-3">
-                                <a href="misCursos.php" class="btn btn-light fw-medium px-4 text-muted border">Cancelar</a>
-                                <button type="submit" class="btn btn-purple fw-medium px-4" name="botonCrearCurso">Confirmar Creación</button>
+                                <a href="misCursos.php" class="btn btn-light fw-medium px-4 text-muted border py-2">Cancelar</a>
+                                <button type="submit" class="btn btn-purple fw-medium px-4 py-2 text-white" name="botonCrearCurso">
+                                    <i class="bi bi-check-lg me-1"></i> Confirmar Creación
+                                </button>
                             </div>
                             
                         </form>
@@ -374,7 +384,7 @@ require_once 'header.php';
                     </div>
                 </div>
                 <div class="modal-footer border-top p-3">
-                    <button type="button" class="btn btn-purple fw-bold px-4" data-bs-dismiss="modal">Aceptar</button>
+                    <button type="button" class="btn btn-purple fw-bold px-4 text-white" data-bs-dismiss="modal">Aceptar</button>
                 </div>
             </div>
         </div>

@@ -127,7 +127,7 @@
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <button type="submit" class="btn btn-purple w-100 fw-bold py-2 rounded-3">
+                        <button type="submit" class="btn btn-purple w-100 fw-bold py-2 rounded-3 text-white">
                             Filtrar Cursos
                         </button>
                     </div>
@@ -202,7 +202,7 @@
                         <?php endwhile; ?>
                     </div>
                 <?php else: ?>
-                    <div class="text-center p-5 bg-light rounded-4 border border-dashed">
+                    <div class="text-center p-5 bg-white rounded-4 shadow-sm border">
                         <i class="bi bi-search-heart display-1 text-muted mb-3 d-block"></i>
                         <h5 class="fw-bold text-dark mb-2">No encontramos resultados</h5>
                         <p class="text-muted mb-4">Intenta cambiando los términos de búsqueda o quitando los filtros aplicados.</p>
@@ -276,7 +276,7 @@
 
                             <?php endwhile; ?>
                         <?php else: ?>
-                            <div class="text-muted p-4 w-100 text-center bg-light rounded border border-dashed">No hay cursos destacados disponibles.</div>
+                            <div class="text-muted p-4 w-100 text-center bg-white rounded-4 shadow-sm">No hay cursos destacados disponibles.</div>
                         <?php endif; ?>
 
                     </div>
@@ -333,7 +333,7 @@
 
                                             <?php if (isset($curso['coincidencias']) && $curso['coincidencias'] > 0): ?>
                                                 <span class="badge bg-light text-primary border" title="Coincidencias de intereses">
-                                                    <i class="bi bi-hand-thumbs-up-fill me-1"></i><?php echo $curso['coincidencias']; ?> match
+                                                    <i class="bi bi-hand-thumbs-up-fill me-1"> <?php echo $curso['coincidencias']; ?> match</i>
                                                 </span>
                                             <?php endif; ?>
                                         </div>
@@ -358,7 +358,7 @@
                         <button class="btn p-0 border-0 arrow-btn d-none d-md-block" id="btn-right-recomendados"><i class="bi bi-caret-right-fill"></i></button>
                     </div>
                 <?php else: ?>
-                    <div class="text-muted p-4 text-center bg-light rounded-4 border border-dashed">
+                    <div class="text-muted p-4 text-center bg-white rounded-4 shadow-sm border">
                         <i class="bi bi-journal-x display-4 mb-2 d-block opacity-50"></i>
                         <p class="mb-0 text-secondary"><?php echo $mensaje_recomendados_vacio; ?></p>
                     </div>

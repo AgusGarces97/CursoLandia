@@ -74,7 +74,7 @@ require_once 'header.php';
                 <input type="password" class="form-control custom-input" id="passwordUsuario" name="passwordUsuario" required placeholder="••••••••">
             </div>
 
-            <button type="submit" class="btn btn-purple w-100 fw-bold py-2 mb-3" name="botonLogin">Iniciar Sesión</button>
+            <button type="submit" class="btn btn-purple w-100 fw-bold py-2 mb-3 text-white" name="botonLogin">Iniciar Sesión</button>
             
             <div class="text-center">
                 <!-- Enlace hacia tu archivo register.php -->

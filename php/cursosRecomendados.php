@@ -195,9 +195,9 @@ require_once 'header.php';
 
                             <div class="card-footer bg-white border-top-0 pt-0">
                                 <?php if ($es_pro): ?>
-                                    <a href="curso.php?id=<?php echo $curso['id_curso']; ?>" class="btn btn-purple w-100 fw-medium shadow-sm">Ver Detalles</a>
+                                    <a href="curso.php?id=<?php echo $curso['id_curso']; ?>" class="btn btn-purple w-100 fw-medium shadow-sm text-white">Ver Detalles</a>
                                 <?php else: ?>
-                                    <a href="curso.php?id=<?php echo $curso['id_curso']; ?>" class="btn btn-outline-primary w-100 fw-medium" style="border-color: var(--PRIMARY); color: var(--PRIMARY);">Ver Detalles</a>
+                                    <a href="curso.php?id=<?php echo $curso['id_curso']; ?>" class="btn btn-outline-primary btn-sm w-100 fw-medium">Ver Detalles</a>
                                 <?php endif; ?>
                             </div>
 

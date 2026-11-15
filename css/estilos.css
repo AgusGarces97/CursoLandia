@@ -1,15 +1,17 @@
 :root{
-    --PRIMARY:  #6c5ce7;
-    --SECONDARY: #5b4bc4;
-    --TERCIARY: #a29bfe;
-    --BORDENAV: #f0f0f5;
+    --PRIMARY:  #2563eb;    /* Azul royal moderno */
+    --SECONDARY: #1d4ed8;   /* Azul más oscuro para hover */
+    --TERCIARY: #93c5fd;    /* Azul claro / pastel para acentos */
+    --BORDENAV: #e2e8f0;    /* Gris neutro claro para bordes */
     --WHITE: #ffffff;
+    --BG-GENERAL: #f4f6f9;
 }
 
 body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    background-color: var(--BG-GENERAL); /* Aplicamos la variable global al fondo */
 }
 
 /* INFORMACIÓN DE ESTILO DE EL NAV */
@@ -90,6 +92,7 @@ body {
     background-color: var(--PRIMARY);
     border: none;
     transition: background-color 0.2s ease;
+    
 }
 
 .btn-purple:hover {

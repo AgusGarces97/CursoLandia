@@ -449,7 +449,7 @@ require_once 'header.php';
 
                             <div class="d-flex justify-content-end gap-3">
                                 <a href="misCursos.php" class="btn btn-light fw-medium px-4 text-muted border">Cancelar</a>
-                                <button type="submit" class="btn btn-purple fw-medium px-4" name="botonEditarCurso">Guardar Cambios</button>
+                                <button type="submit" class="btn btn-purple fw-medium px-4 text-white" name="botonEditarCurso">Guardar Cambios</button>
                             </div>
                             
                         </form>
@@ -584,7 +584,7 @@ require_once 'header.php';
                     </div>
                 </div>
                 <div class="modal-footer border-top p-3">
-                    <button type="button" class="btn btn-purple fw-bold px-4" data-bs-dismiss="modal">Aceptar</button>
+                    <button type="button" class="btn btn-purple fw-bold px-4 text-white" data-bs-dismiss="modal">Aceptar</button>
                 </div>
             </div>
         </div>

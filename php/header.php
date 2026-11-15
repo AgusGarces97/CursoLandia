@@ -7,6 +7,8 @@ if(session_status() == PHP_SESSION_NONE){
 
 // Consultamos la cantidad de notificaciones no leídas y sincronizamos el plan del usuario activo
 $cant_notif_no_leidas = 0;
+$imagen_perfil_nav = 'default_avatar.png';
+
 if (isset($_SESSION['id_usuario'])) {
     // Protección para no incluir conexion.php si ya fue incluido en el archivo principal
     if (!isset($conexion)) {
@@ -14,8 +16,8 @@ if (isset($_SESSION['id_usuario'])) {
     }
     $id_user_nav = (int)$_SESSION['id_usuario'];
 
-    // Sincronizamos plan y rol desde la BD para reflejar cambios sin tener que cerrar sesión
-    $sql_user_nav = "SELECT plan, rol, vencimiento_pro FROM usuarios WHERE id_usuario = $id_user_nav";
+    // Sincronizamos plan, rol e imagen de perfil desde la BD
+    $sql_user_nav = "SELECT plan, rol, vencimiento_pro, imagen_perfil FROM usuarios WHERE id_usuario = $id_user_nav";
     $res_user_nav = mysqli_query($conexion, $sql_user_nav);
     if ($res_user_nav && mysqli_num_rows($res_user_nav) > 0) {
         $datos_user_nav = mysqli_fetch_assoc($res_user_nav);
@@ -29,6 +31,10 @@ if (isset($_SESSION['id_usuario'])) {
 
         $_SESSION['plan'] = $plan_actual;
         $_SESSION['rol'] = $datos_user_nav['rol'];
+        
+        if (!empty($datos_user_nav['imagen_perfil'])) {
+            $imagen_perfil_nav = $datos_user_nav['imagen_perfil'];
+        }
     }
 
     $sql_nav_notif = "SELECT COUNT(*) as total FROM notificaciones WHERE id_usuario = $id_user_nav AND leida = 0";
@@ -37,6 +43,11 @@ if (isset($_SESSION['id_usuario'])) {
         $cant_notif_no_leidas = mysqli_fetch_assoc($res_nav_notif)['total'];
     }
 }
+
+// Detectamos el nombre del archivo actual para marcar la pestaña activa en el nav
+$pagina_actual = basename($_SERVER['PHP_SELF']);
+// Si estamos en la raíz (index.php), asignamos un identificador único
+$es_index = ($pagina_actual === 'index.php');
 
 ?>
 
@@ -66,66 +77,94 @@ if (isset($_SESSION['id_usuario'])) {
                 </button>
 
                 <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav mx-auto align-items-center gap-3 my-2 my-lg-0">
+                    <!-- Enlaces principales centrados -->
+                    <ul class="navbar-nav mx-auto align-items-lg-center text-center gap-3 my-2 my-lg-0">
                         <li class="nav-item">
-                            <a class="nav-link custom-link text-nowrap" href="<?php echo $ruta; ?>php/nuevoCurso.php">Nuevo Curso</a>
+                            <a class="nav-link custom-link text-nowrap <?php echo ($pagina_actual === 'nuevoCurso.php') ? 'active' : ''; ?>" href="<?php echo $ruta; ?>php/nuevoCurso.php">Nuevo Curso</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link custom-link text-nowrap" href="<?php echo $ruta; ?>php/misCursos.php">Mis Cursos</a>
+                            <a class="nav-link custom-link text-nowrap <?php echo (in_array($pagina_actual, ['misCursos.php', 'editarCurso.php', 'curso.php'])) ? 'active' : ''; ?>" href="<?php echo $ruta; ?>php/misCursos.php">Mis Cursos</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link custom-link text-nowrap" href="<?php echo $ruta; ?>php/cursosRecomendados.php">Cursos Recomendados</a>
+                            <a class="nav-link custom-link text-nowrap <?php echo ($pagina_actual === 'cursosRecomendados.php') ? 'active' : ''; ?>" href="<?php echo $ruta; ?>php/cursosRecomendados.php">Cursos Recomendados</a>
                         </li>
                         
                         <!-- ZONA RESTRINGIDA: Solo visible para Administradores -->
                         <?php if(isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin'): ?>
                         <li class="nav-item">
-                            <a class="nav-link custom-link text-nowrap" href="<?php echo $ruta; ?>php/solicitudesPro.php">Solicitudes Plan Pro</a>
+                            <a class="nav-link custom-link text-nowrap <?php echo ($pagina_actual === 'solicitudesPro.php') ? 'active' : ''; ?>" href="<?php echo $ruta; ?>php/solicitudesPro.php">Solicitudes Plan Pro</a>
                         </li>                 
                         <?php endif; ?>
                     </ul>
 
-                   <!-- ZONA DINÁMICA: Cambia si hay sesión o no -->
-                        <div class="d-flex align-items-center gap-4 mt-2 mt-lg-0">
+                   <!-- ZONA DINÁMICA: Envuelto dentro del collapse para mantener alineación en móviles y escritorio -->
+                    <div class="d-flex flex-column flex-lg-row align-items-center justify-content-center gap-3 mt-3 mt-lg-0">
+                        
+                        <?php if(isset($_SESSION['id_usuario'])): ?>
+                            <!-- SI ESTÁ LOGUEADO: Campana con enlace directo y contador Badge -->
+                            <a class="text-decoration-none position-relative" href="<?php echo $ruta; ?>php/notificaciones.php" title="Notificaciones">
+                                <i class="bi bi-bell-fill color-logo fs-4"></i>
+                                <?php if($cant_notif_no_leidas > 0): ?>
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+                                        <?php echo $cant_notif_no_leidas > 99 ? '99+' : $cant_notif_no_leidas; ?>
+                                    </span>
+                                <?php endif; ?>
+                            </a>
                             
-                            <?php if(isset($_SESSION['id_usuario'])): ?>
-                                <!-- SI ESTÁ LOGUEADO: Campana con enlace directo y contador Badge -->
-                                <a class="text-decoration-none position-relative" href="<?php echo $ruta; ?>php/notificaciones.php" title="Notificaciones">
-                                    <i class="bi bi-bell-fill color-logo fs-4"></i>
-                                    <?php if($cant_notif_no_leidas > 0): ?>
-                                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
-                                            <?php echo $cant_notif_no_leidas > 99 ? '99+' : $cant_notif_no_leidas; ?>
-                                        </span>
-                                    <?php endif; ?>
-                                </a>
-                                
-                                <!-- Dropdown de Perfil -->
-                                <div class="dropdown">
-                                    <a href="#" class="text-decoration-none d-flex align-items-center gap-2 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <!-- Dropdown de Perfil -->
+                            <div class="dropdown text-center">
+                                <a href="#" class="text-decoration-none d-flex align-items-center justify-content-center gap-2 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <?php if (!empty($imagen_perfil_nav) && $imagen_perfil_nav !== 'default_avatar.png' && file_exists(__DIR__ . '/../uploads/perfiles/' . $imagen_perfil_nav)): ?>
+                                        <img src="<?php echo $ruta; ?>uploads/perfiles/<?php echo htmlspecialchars($imagen_perfil_nav); ?>" alt="Avatar" class="rounded-circle border" style="width: 35px; height: 35px; object-fit: cover;">
+                                    <?php else: ?>
                                         <i class="bi bi-person-circle color-logo fs-3"></i>
-                                        <span class="text-dark fw-medium"><?php echo $_SESSION['nombre']; ?></span>
-                                    </a>
-                                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2">
-                                        <li><a class="dropdown-item py-2" href="<?php echo $ruta; ?>php/perfil.php"><i class="bi bi-person me-2"></i>Mi Perfil</a></li>
-                                        <?php if($_SESSION['plan'] == 'pro'): ?>
-                                            <li><span class="dropdown-item py-2 text-warning fw-bold"><i class="bi bi-star-fill me-2"></i>Cuenta PRO</span></li>
-                                        <?php endif; ?>
-                                        <?php if(isset($_SESSION['rol']) && $_SESSION['rol'] == 'admin'): ?>
-                                            <li><span class="dropdown-item py-2 text-danger fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Admin</span></li>
-                                        <?php endif; ?>
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li><a class="dropdown-item py-2 text-danger fw-medium" href="<?php echo $ruta; ?>php/logout.php"><i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión</a></li>
-                                    </ul>
-                                </div>
+                                    <?php endif; ?>
+                                    <span class="text-dark fw-medium"><?php echo $_SESSION['nombre']; ?></span>
+                                </a>
+                                <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2">
+                                    <li><a class="dropdown-item py-2" href="<?php echo $ruta; ?>php/perfil.php"><i class="bi bi-person me-2"></i>Mi Perfil</a></li>
+                                    <?php if($_SESSION['plan'] == 'pro'): ?>
+                                        <li><span class="dropdown-item py-2 text-warning fw-bold"><i class="bi bi-star-fill me-2"></i>Cuenta PRO</span></li>
+                                    <?php endif; ?>
+                                    <?php if(isset($_SESSION['rol']) && $_SESSION['rol'] == 'admin'): ?>
+                                        <li><span class="dropdown-item py-2 text-danger fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Admin</span></li>
+                                    <?php endif; ?>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item py-2 text-danger fw-medium" href="#" data-bs-toggle="modal" data-bs-target="#modalCerrarSesion"><i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión</a></li>
+                                </ul>
+                            </div>
 
-                            <?php else: ?>
-                                <!-- SI NO ESTÁ LOGUEADO -->
-                                <a href="<?php echo $ruta; ?>php/login.php" class="btn btn-outline-primary fw-medium px-4" style="color: var(--PRIMARY); border-color: var(--PRIMARY);">Ingresar</a>
-                                <a href="<?php echo $ruta; ?>php/register.php" class="btn btn-purple fw-medium px-4">Registrarse</a>
-                            <?php endif; ?>
+                        <?php else: ?>
+                            <!-- SI NO ESTÁ LOGUEADO: Botones con ancho ajustado (sin w-100) -->
+                            <a href="<?php echo $ruta; ?>php/login.php" class="btn btn-outline-primary fw-medium px-4" style="color: var(--PRIMARY); border-color: var(--PRIMARY);">Ingresar</a>
+                            <a href="<?php echo $ruta; ?>php/register.php" class="btn btn-purple fw-medium px-4 text-white">Registrarse</a>
+                        <?php endif; ?>
 
-                        </div>
+                    </div>
                 </div>
             </div>
         </nav>
     </header>
+
+    <!-- MODAL DE CONFIRMACIÓN PARA CERRAR SESIÓN -->
+    <div class="modal fade" id="modalCerrarSesion" tabindex="-1" aria-labelledby="modalCerrarSesionLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4 text-dark">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold" id="modalCerrarSesionLabel">
+                        <i class="bi bi-box-arrow-right text-danger me-2"></i>Cerrar Sesión
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <i class="bi bi-exclamation-circle text-warning display-4 mb-3 d-block"></i>
+                    <h5 class="fw-bold text-dark mb-2">¿Estás seguro que deseas salir?</h5>
+                    <p class="text-muted small mb-0">Tendrás que volver a ingresar tus credenciales para acceder a tu cuenta en Cursolandia.</p>
+                </div>
+                <div class="modal-footer border-top p-3 d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-light border fw-medium px-4" data-bs-dismiss="modal">Cancelar</button>
+                    <a href="<?php echo $ruta; ?>php/logout.php" class="btn btn-danger fw-bold px-4">Sí, cerrar sesión</a>
+                </div>
+            </div>
+        </div>
+    </div>
