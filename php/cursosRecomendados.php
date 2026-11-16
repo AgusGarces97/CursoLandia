@@ -221,7 +221,7 @@ require_once 'header.php';
                     </p>
                     <div class="d-flex justify-content-center gap-3">
                         <a href="perfil.php" class="btn btn-outline-primary fw-medium px-4">Editar mis Intereses</a>
-                        <a href="../index.php" class="btn btn-purple fw-medium px-4">Explorar Catálogo</a>
+                        <a href="../index.php" class="btn btn-purple fw-medium px-4 text-white">Explorar Catálogo</a>
                     </div>
                 </div>
             </div>

@@ -751,7 +751,7 @@
                                                     <input type="hidden" name="accion_foro" value="crear_respuesta">
                                                     <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
                                                     <textarea name="cuerpo_respuesta" class="form-control custom-input mb-2" rows="2" placeholder="Escribe tu respuesta..." required></textarea>
-                                                    <button type="submit" class="btn btn-purple btn-sm fw-medium">Publicar Respuesta</button>
+                                                    <button type="submit" class="btn btn-purple btn-sm fw-medium text-white">Publicar Respuesta</button>
                                                 </form>
                                             </div>
                                         <?php endif; ?>
@@ -785,7 +785,7 @@
                                                                 <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
                                                                 <textarea name="cuerpo_respuesta" class="form-control custom-input mb-2" rows="2" required><?php echo htmlspecialchars($resp['cuerpo']); ?></textarea>
                                                                 <div class="d-flex gap-2">
-                                                                    <button type="submit" class="btn btn-purple btn-sm fw-medium">Guardar Edición</button>
+                                                                    <button type="submit" class="btn btn-purple btn-sm fw-medium text-white">Guardar Edición</button>
                                                                     <button type="button" class="btn btn-light btn-sm border" data-bs-toggle="collapse" data-bs-target="#editarRespCollapse<?php echo $id_resp_actual; ?>">Cancelar</button>
                                                                 </div>
                                                             </form>
@@ -873,7 +873,7 @@
                         </ul>
                         
                         <?php if(!$id_usuario_actual): ?>
-                            <a href="login.php" class="btn btn-purple w-100 fw-medium">Inicia sesión para inscribirte</a>
+                            <a href="login.php" class="btn btn-purple w-100 fw-medium text-white">Inicia sesión para inscribirte</a>
                         <?php elseif($es_creador): ?>
                             <a href="editarCurso.php?id=<?php echo $id_curso; ?>" class="btn btn-outline-primary w-100 fw-medium">Editar Datos del Curso</a>
                         <?php elseif($estado_inscripcion === 'aceptada'): ?>
@@ -901,7 +901,7 @@
                                 <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
                                 <input type="hidden" name="accion" value="inscribir">
                                 <?php $hay_cupo = ($curso['cupo'] === null || $total_alumnos < $curso['cupo']); ?>
-                                <button type="submit" class="btn btn-purple w-100 fw-medium" <?php echo !$hay_cupo ? 'disabled' : ''; ?>>
+                                <button type="submit" class="btn btn-purple w-100 fw-medium text-white" <?php echo !$hay_cupo ? 'disabled' : ''; ?>>
                                     <?php echo $hay_cupo ? ($curso['es_pago'] == 1 ? 'Solicitar Inscripción (' . $costo_formateado . ')' : 'Inscribirse al Curso') : 'Cupo Lleno'; ?>
                                 </button>
                             </form>
@@ -1056,7 +1056,7 @@
                     </div>
                     <div class="modal-footer border-top p-3">
                         <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-purple fw-bold px-4">Publicar Pregunta</button>
+                        <button type="submit" class="btn btn-purple fw-bold px-4 text-white">Publicar Pregunta</button>
                     </div>
                 </form>
             </div>
@@ -1090,7 +1090,7 @@
                     </div>
                     <div class="modal-footer border-top p-3">
                         <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-purple fw-bold px-4">Subir Archivo</button>
+                        <button type="submit" class="btn btn-purple fw-bold px-4 text-white">Subir Archivo</button>
                     </div>
                 </form>
             </div>

@@ -257,7 +257,7 @@ require_once 'header.php';
                                         <label class="form-label fw-medium text-dark"><i class="bi bi-tags-fill text-primary me-1"></i> Etiquetas (Opcional)</label>
                                         <div class="mb-2">
                                             <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium d-flex align-items-center justify-content-center gap-2" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
-                                                <i class="bi bi-tags"></i> Seleccionar Etiquetas de la Base de Datos
+                                                <i class="bi bi-tags"></i> Seleccionar Etiquetas
                                             </button>
                                         </div>
 
@@ -362,7 +362,7 @@ require_once 'header.php';
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que apliquen al curso:</p>
+                    <p class="text-muted small mb-3">Marca las etiquetas que apliquen al curso:</p>
                     <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
                         <?php if (count($todas_etiquetas_arr) > 0): ?>
                             <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
@@ -379,7 +379,7 @@ require_once 'header.php';
                             <?php endforeach; ?>
                         <?php else: ?>
                             <div class="col-12 text-center text-muted py-3">
-                                No hay etiquetas registradas en la base de datos.
+                                No hay etiquetas registradas
                             </div>
                         <?php endif; ?>
                     </div>

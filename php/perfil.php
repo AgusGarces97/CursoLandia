@@ -195,7 +195,7 @@
                             <!-- Se rellena dinámicamente con JS y aloja los inputs hidden -->
                         </div>
                         <div class="form-text mt-2" style="font-size: 0.75rem;">
-                            Haz clic en el botón superior para seleccionar tus temas de interés desde la base de datos.
+                            Haz clic en el botón superior para seleccionar tus temas de interés
                         </div>
                     </div>
 
@@ -216,7 +216,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que reflejen tus intereses:</p>
+                    <p class="text-muted small mb-3">Marca las etiquetas que reflejen tus intereses:</p>
                     <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
                         <?php if (count($todas_etiquetas_arr) > 0): ?>
                             <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
@@ -233,7 +233,7 @@
                             <?php endforeach; ?>
                         <?php else: ?>
                             <div class="col-12 text-center text-muted py-3">
-                                No hay etiquetas registradas en la base de datos.
+                                No hay etiquetas registradas
                             </div>
                         <?php endif; ?>
                     </div>

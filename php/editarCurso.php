@@ -563,7 +563,7 @@ require_once 'header.php';
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que apliquen al curso:</p>
+                    <p class="text-muted small mb-3">Marca las etiquetas que apliquen al curso:</p>
                     <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
                         <?php if (count($todas_etiquetas_arr) > 0): ?>
                             <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
@@ -580,7 +580,7 @@ require_once 'header.php';
                             <?php endforeach; ?>
                         <?php else: ?>
                             <div class="col-12 text-center text-muted py-3">
-                                No hay etiquetas registradas en la base de datos.
+                                No hay etiquetas registradas.
                             </div>
                         <?php endif; ?>
                     </div>
