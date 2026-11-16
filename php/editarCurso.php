@@ -516,22 +516,16 @@ require_once 'header.php';
                                                                 </button>
                                                             </form>
 
-                                                            <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Rechazar solicitud de este alumno?');">
-                                                                <input type="hidden" name="accion_alumno" value="rechazar">
-                                                                <input type="hidden" name="id_inscripcion" value="<?php echo $alumno['id_inscripcion']; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger fw-medium">
-                                                                    <i class="bi bi-x-lg me-1"></i>Rechazar
-                                                                </button>
-                                                            </form>
+                                                            <!-- Botón que activa el modal para rechazar solicitud pendiente -->
+                                                            <button type="button" class="btn btn-sm btn-outline-danger fw-medium btn-rechazar-inscripcion" data-bs-toggle="modal" data-bs-target="#modalConfirmarRechazar" data-idins="<?php echo $alumno['id_inscripcion']; ?>">
+                                                                <i class="bi bi-x-lg me-1"></i>Rechazar
+                                                            </button>
                                                         </div>
                                                     <?php else: ?>
-                                                        <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Dar de baja a este alumno del curso?');">
-                                                            <input type="hidden" name="accion_alumno" value="rechazar">
-                                                            <input type="hidden" name="id_inscripcion" value="<?php echo $alumno['id_inscripcion']; ?>">
-                                                            <button type="submit" class="btn btn-sm btn-outline-secondary border-0" title="Dar de baja">
-                                                                <i class="bi bi-person-x-fill text-danger fs-6"></i>
-                                                            </button>
-                                                        </form>
+                                                        <!-- Botón que activa el modal para dar de baja a alumno aceptado -->
+                                                        <button type="button" class="btn btn-sm btn-outline-secondary border-0 btn-baja-inscripcion" data-bs-toggle="modal" data-bs-target="#modalConfirmarBaja" data-idins="<?php echo $alumno['id_inscripcion']; ?>" title="Dar de baja">
+                                                            <i class="bi bi-person-x-fill text-danger fs-6"></i>
+                                                        </button>
                                                     <?php endif; ?>
                                                 </td>
                                             </tr>
@@ -592,7 +586,57 @@ require_once 'header.php';
         </div>
     </div>
 
-    <!-- JS de interacción de Precio y Sincronización Robusta de Etiquetas con Modal -->
+    <!-- MODAL DE CONFIRMACIÓN: RECHAZAR SOLICITUD PENDIENTE -->
+    <div class="modal fade" id="modalConfirmarRechazar" tabindex="-1" aria-labelledby="modalConfirmarRechazarLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-danger" id="modalConfirmarRechazarLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Rechazar Solicitud
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary mb-0">¿Estás seguro de que deseas rechazar la solicitud de este alumno?</p>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                    <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" id="formRechazarInscripcion">
+                        <input type="hidden" name="accion_alumno" value="rechazar">
+                        <input type="hidden" name="id_inscripcion" id="inputIdInscripcionRechazar" value="">
+                        <button type="submit" class="btn btn-danger fw-bold px-4 text-white">Sí, rechazar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN: DAR DE BAJA ALUMNO -->
+    <div class="modal fade" id="modalConfirmarBaja" tabindex="-1" aria-labelledby="modalConfirmarBajaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-danger" id="modalConfirmarBajaLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Dar de Baja Alumno
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary mb-0">¿Estás seguro de dar de baja a este alumno del curso?</p>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                    <form action="editarCurso.php?id=<?php echo $id_curso; ?>" method="POST" id="formBajaInscripcion">
+                        <input type="hidden" name="accion_alumno" value="rechazar">
+                        <input type="hidden" name="id_inscripcion" id="inputIdInscripcionBaja" value="">
+                        <button type="submit" class="btn btn-danger fw-bold px-4 text-white">Sí, dar de baja</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS de interacción de Precio, Etiquetas y Modales de Confirmación -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const selectTipoCosto = document.getElementById('tipo_costo');
@@ -670,6 +714,19 @@ require_once 'header.php';
 
             // Inicializar al cargar la página con las etiquetas actuales del curso
             actualizarBadges();
+
+            // Asignación de IDs para los modales de confirmación de alumnos
+            document.querySelectorAll('.btn-rechazar-inscripcion').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.getElementById('inputIdInscripcionRechazar').value = this.getAttribute('data-idins');
+                });
+            });
+
+            document.querySelectorAll('.btn-baja-inscripcion').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.getElementById('inputIdInscripcionBaja').value = this.getAttribute('data-idins');
+                });
+            });
         });
     </script>
 
