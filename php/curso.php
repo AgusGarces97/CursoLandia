@@ -29,12 +29,17 @@
         header("Location: ../index.php");
         exit();
     }
+    // Guardamos en una variable toda la información del curso obtenida de la consulta
     $curso = mysqli_fetch_assoc($resultado_curso);
 
+    // Se fija el usuario actual es el creador o docente del curso
     $es_creador = ($id_usuario_actual == $curso['id_creador']);
+    // Se fija si el curo al que entramos esta programado o activo
     $es_programado = ($curso['activo'] == 0 && !empty($curso['programado']) && $curso['programado'] == 1);
+    // Inicializamos variables que indican si está inscripto y el estado de la inscripcion (para cursos pago)
     $esta_inscripto = false;
     $estado_inscripcion = null;
+    // Se fija si existe un valor numérico del curso, se lo asigna en caso afirmativo o le asigna 0 en caso negativo
     $costo_curso = (float)($curso['costo'] ?? 0);
     $costo_formateado = '$' . number_format($costo_curso, 2, ',', '.');
 
@@ -65,7 +70,7 @@
     $puede_participar_foro = ($es_creador || ($esta_inscripto && (int)$curso['activo'] === 1));
 
     // =========================================================
-    // LÓGICA DE GESTIÓN DE COMUNICADOS (CONDICIONADA A FECHA DE INICIO)
+    // LÓGICA DE GESTIÓN DE COMUNICADOS
     // =========================================================
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_comunicado']) && $_POST['accion_comunicado'] === 'crear' && $es_creador && $curso_iniciado) {
         $titulo_com = mysqli_real_escape_string($conexion, trim($_POST['titulo_comunicado']));
@@ -95,6 +100,9 @@
         }
     }
 
+    // =========================================================
+    // LÓGICA DE BORRADO DE COMUNICADOS
+    // =========================================================
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_comunicado']) && $_POST['accion_comunicado'] === 'eliminar' && $es_creador) {
         $id_comunicado = (int)$_POST['id_comunicado'];
         mysqli_query($conexion, "DELETE FROM comunicados_curso WHERE id_comunicado = $id_comunicado AND id_curso = $id_curso");
@@ -193,6 +201,7 @@
     // LÓGICA DEL FORO DE DUDAS Y DISPARO DE NOTIFICACIONES
     // =========================================================
 
+    // Creacion de Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_pregunta' && $puede_crear_pregunta) {
         $titulo_p = mysqli_real_escape_string($conexion, trim($_POST['titulo_pregunta']));
         $cuerpo_p = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_pregunta']));
@@ -225,6 +234,7 @@
         }
     }
 
+    // Creacion de Respuesta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'crear_respuesta' && $puede_participar_foro) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $cuerpo_r = mysqli_real_escape_string($conexion, trim($_POST['cuerpo_respuesta']));
@@ -277,6 +287,7 @@
         }
     }
 
+    // Edicion de Respuesta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'editar_respuesta' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $id_pregunta = (int)$_POST['id_pregunta'];
@@ -301,6 +312,7 @@
         }
     }
 
+    // Destacar Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'destacar_pregunta' && $es_creador) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         
@@ -326,6 +338,7 @@
         }
     }
 
+    // Aceptar Respuesta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'marcar_aceptada' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $id_pregunta = (int)$_POST['id_pregunta'];
@@ -361,6 +374,7 @@
         }
     }
 
+    // Eliminar Pregunta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_pregunta' && $puede_participar_foro) {
         $id_pregunta = (int)$_POST['id_pregunta'];
         $sql_chk_p = "SELECT id_autor, titulo FROM foro_preguntas WHERE id_pregunta = $id_pregunta AND id_curso = $id_curso";
@@ -389,6 +403,7 @@
         }
     }
 
+    // Eliminiar Respuesta
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['accion_foro']) && $_POST['accion_foro'] === 'eliminar_respuesta' && $puede_participar_foro) {
         $id_respuesta = (int)$_POST['id_respuesta'];
         $sql_chk_r = "
@@ -422,6 +437,7 @@
     $resultado_comunicados = mysqli_query($conexion, $sql_comunicados);
     $total_comunicados = mysqli_num_rows($resultado_comunicados);
 
+    // Consultas para renderizar las preguntas
     $sql_preguntas = "
         SELECT fp.*, u.nombre, u.apellido 
         FROM foro_preguntas fp
@@ -432,6 +448,7 @@
     $resultado_preguntas = mysqli_query($conexion, $sql_preguntas);
     $total_preguntas = mysqli_num_rows($resultado_preguntas);
 
+    // Consultas para renderizar las etiquetas
     $sql_tags_curso = "
         SELECT e.nombre 
         FROM curso_etiquetas ce 
@@ -451,12 +468,14 @@
         }
     }
 
+    // Condicion para ver si tiene imagen, si no la tiene le pone un gradiente como banner
     $tiene_imagen = (!empty($curso['imagen']) && file_exists('../uploads/cursos/' . $curso['imagen']));
     $clase_gradiente_banner = $tiene_imagen ? '' : 'curso-gradiente-' . (($curso['id_curso'] % 5) + 1);
     $bg_banner = $tiene_imagen
         ? 'style="background: linear-gradient(rgba(30, 30, 40, 0.6), rgba(30, 30, 40, 0.85)), url(\'../uploads/cursos/' . htmlspecialchars($curso['imagen']) . '\'); background-size: cover; background-position: center;"'
         : '';
 
+    // Definicion del titulo de la pagina e inclusión del header
     $titulo_pagina = $curso['titulo'] . ' - Cursolandia';
     $ruta = '../';
     require_once 'header.php' ;
@@ -573,11 +592,11 @@
                 </p>
             </div>
         </div>
-
+        
         <div class="row g-5">
             
             <div class="col-lg-8">
-                
+                <!-- Mostrar las etiquetas y descripción del curso -->
                 <section class="mb-5">
                     <h4 class="fw-bold mb-3">Acerca de este curso</h4>
                     <p class="text-secondary" style="line-height: 1.6; white-space: pre-wrap;"><?php echo htmlspecialchars($curso['descripcion']); ?></p>
@@ -593,10 +612,11 @@
                     </div>
                 </section>
 
-                <!-- SECCIÓN: COMUNICADOS DEL DOCENTE -->
+                <!-- Seccion para comunicados del docente -->
                 <section id="comunicados" class="mb-5">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="fw-bold mb-0"><i class="bi bi-megaphone-fill text-primary me-2"></i>Comunicados del Docente (<?php echo $total_comunicados; ?>)</h4>
+                        <!-- Se fija si es el docente y si el curso esta iniciado, caso afirmativo muestra el boton para crear un comunicado -->
                         <?php if($es_creador && $curso_iniciado): ?>
                             <button class="btn fw-medium text-white shadow-sm btn-sm" style="background-color: var(--PRIMARY);" data-bs-toggle="modal" data-bs-target="#modalNuevoComunicado">
                                 <i class="bi bi-plus-lg me-1"></i>Nuevo Comunicado
@@ -604,12 +624,13 @@
                         <?php endif; ?>
                     </div>
 
+                    <!-- Se fija si es el docente y si el curso esta iniciado, caso negativo muestra un mensaje informativo -->
                     <?php if($es_creador && !$curso_iniciado): ?>
                         <div class="alert alert-info border-0 shadow-sm mb-4 rounded-3">
                             <i class="bi bi-calendar-event-fill me-2"></i>Podrás publicar comunicados a partir de la fecha de inicio del curso (<?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?>).
                         </div>
                     <?php endif; ?>
-
+                    <!-- Renderizado de Comunicados desde la bd -->
                     <?php if($total_comunicados > 0): ?>
                         <div class="d-flex flex-column gap-3">
                             <?php while($com = mysqli_fetch_assoc($resultado_comunicados)): ?>
@@ -620,13 +641,10 @@
                                             <div class="d-flex align-items-center gap-2">
                                                 <small class="text-muted"><i class="bi bi-clock me-1"></i><?php echo date("d/m/Y H:i", strtotime($com['fecha_creacion'])); ?></small>
                                                 <?php if($es_creador): ?>
-                                                    <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Estás seguro de eliminar este comunicado?');">
-                                                        <input type="hidden" name="accion_comunicado" value="eliminar">
-                                                        <input type="hidden" name="id_comunicado" value="<?php echo $com['id_comunicado']; ?>">
-                                                        <button type="submit" class="btn btn-sm btn-outline-danger border-0 p-1" title="Eliminar comunicado">
-                                                            <i class="bi bi-trash-fill"></i>
-                                                        </button>
-                                                    </form>
+                                                    <!-- Botón que activa el modal de confirmación para eliminar comunicado -->
+                                                    <button type="button" class="btn btn-sm btn-outline-danger border-0 p-1 btn-eliminar-comunicado" data-bs-toggle="modal" data-bs-target="#modalConfirmarEliminarComunicado" data-id="<?php echo $com['id_comunicado']; ?>" title="Eliminar comunicado">
+                                                        <i class="bi bi-trash-fill"></i>
+                                                    </button>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
@@ -644,27 +662,32 @@
                         </div>
                     <?php endif; ?>
                 </section>
-
+                
+                <!-- Seccion del foro de preguntas y respuestas -->
                 <section id="foro">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="fw-bold mb-0">Foro de Dudas (<?php echo $total_preguntas; ?>)</h4>
+                        <!-- Si el usuario puede crear preguntas, le muestra el boton -->
                         <?php if($puede_crear_pregunta): ?>
                             <button class="btn fw-medium text-white shadow-sm" style="background-color: var(--PRIMARY);" data-bs-toggle="modal" data-bs-target="#modalNuevaPregunta">
                                 <i class="bi bi-chat-left-text me-2"></i>Iniciar Pregunta
                             </button>
                         <?php endif; ?>
                     </div>
-
+                    
+                    <!-- Si el curso todavía no empieza, el foro no se muestra y se muestra un mensaje -->
                     <?php if($esta_inscripto && !$curso_iniciado): ?>
                         <div class="alert alert-info border-0 shadow-sm mb-4 rounded-3">
                             <i class="bi bi-calendar-event-fill me-2"></i>El foro de dudas estará disponible para iniciar preguntas a partir de la fecha de inicio del curso (<?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?>).
                         </div>
+                    <!-- Si el curso no esta activo, se deshabilita el foro hasa que vuelva a estar activo -->
                     <?php elseif($esta_inscripto && (int)$curso['activo'] === 0): ?>
                         <div class="alert alert-secondary border-0 shadow-sm mb-4 rounded-3">
                             <i class="bi bi-pause-circle-fill me-2"></i>Este curso se encuentra actualmente pausado o en borrador. Conservas acceso al material ya publicado, pero la participación en el foro está temporalmente deshabilitada.
                         </div>
                     <?php endif; ?>
-
+                    
+                    <!-- Renderizado de las preguntas desde la base de datos -->
                     <?php if($total_preguntas > 0): ?>
                         <?php while($pregunta = mysqli_fetch_assoc($resultado_preguntas)): ?>
                             <?php 
@@ -721,13 +744,10 @@
                                             <?php endif; ?>
 
                                             <?php if($puede_participar_foro && ($es_creador || $pregunta['id_autor'] == $id_usuario_actual)): ?>
-                                                <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar esta pregunta y todas sus respuestas?');">
-                                                    <input type="hidden" name="accion_foro" value="eliminar_pregunta">
-                                                    <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0" title="Eliminar pregunta">
-                                                        <i class="bi bi-trash-fill"></i>
-                                                    </button>
-                                                </form>
+                                                <!-- Botón que activa el modal para eliminar pregunta -->
+                                                <button type="button" class="btn btn-sm btn-outline-danger border-0 btn-eliminar-pregunta" data-bs-toggle="modal" data-bs-target="#modalConfirmarEliminarPregunta" data-id="<?php echo $id_preg; ?>" title="Eliminar pregunta">
+                                                    <i class="bi bi-trash-fill"></i>
+                                                </button>
                                             <?php endif; ?>
                                         </div>
                                     </div>
@@ -794,14 +814,10 @@
 
                                                     <div class="d-flex gap-3 align-items-center">
                                                         <?php if($puede_participar_foro && !$tema_cerrado && ($es_creador || $pregunta['id_autor'] == $id_usuario_actual) && $resp['es_aceptada'] == 0): ?>
-                                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline" onsubmit="return confirm('¿Marcar esta respuesta como aceptada y cerrar el tema?');">
-                                                                <input type="hidden" name="accion_foro" value="marcar_aceptada">
-                                                                <input type="hidden" name="id_respuesta" value="<?php echo $id_resp_actual; ?>">
-                                                                <input type="hidden" name="id_pregunta" value="<?php echo $id_preg; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-outline-success border-0 px-0">
-                                                                    <i class="bi bi-check-circle-fill me-1"></i>Destacar Respuesta
-                                                                </button>
-                                                            </form>
+                                                            <!-- Botón que activa el modal para aceptar/destacar respuesta -->
+                                                            <button type="button" class="btn btn-sm btn-outline-success border-0 px-0 btn-aceptar-respuesta" data-bs-toggle="modal" data-bs-target="#modalConfirmarAceptarRespuesta" data-idresp="<?php echo $id_resp_actual; ?>" data-idpreg="<?php echo $id_preg; ?>">
+                                                                <i class="bi bi-check-circle-fill me-1"></i>Destacar Respuesta
+                                                            </button>
                                                         <?php endif; ?>
 
                                                         <?php if($puede_editar_esta_resp): ?>
@@ -811,13 +827,10 @@
                                                         <?php endif; ?>
 
                                                         <?php if($puede_participar_foro && !$tema_cerrado && ($es_creador || $resp['id_autor'] == $id_usuario_actual)): ?>
-                                                            <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" class="d-inline ms-auto" onsubmit="return confirm('¿Eliminar respuesta?');">
-                                                                <input type="hidden" name="accion_foro" value="eliminar_respuesta">
-                                                                <input type="hidden" name="id_respuesta" value="<?php echo $id_resp_actual; ?>">
-                                                                <button type="submit" class="btn btn-sm btn-outline-danger border-0">
-                                                                    <i class="bi bi-trash-fill"></i>
-                                                                </button>
-                                                            </form>
+                                                            <!-- Botón que activa el modal para eliminar respuesta -->
+                                                            <button type="button" class="btn btn-sm btn-outline-danger border-0 ms-auto btn-eliminar-respuesta" data-bs-toggle="modal" data-bs-target="#modalConfirmarEliminarRespuesta" data-idresp="<?php echo $id_resp_actual; ?>">
+                                                                <i class="bi bi-trash-fill"></i>
+                                                            </button>
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
@@ -843,6 +856,7 @@
             <!-- TARJETA LATERAL DE INFORMACIÓN E INSCRIPCIÓN -->
             <div class="col-lg-4">
                 <div class="card border-0 shadow-sm mb-4">
+                    <!-- Seccion para mostrar si esta o no inscripto, o si es docente -->
                     <div class="card-body p-4 text-center">
                         <?php if($es_creador): ?>
                             <h5 class="fw-bold text-primary mb-3"><i class="bi bi-person-video3 me-2"></i>Eres el docente</h5>
@@ -854,34 +868,42 @@
                             <h5 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle me-2"></i>Información</h5>
                         <?php endif; ?>
 
+                        <!-- Si no esta inscripto, evalúa lo siguiente -->
                         <?php if(!$esta_inscripto): ?>
                             <div class="p-3 mb-3 rounded-3 bg-light border">
                                 <span class="text-muted small d-block mb-1">Valor del curso</span>
+                                <!-- Si el curso es pago, muestra el valor numérico ya formateado antes -->
                                 <?php if($curso['es_pago'] == 1): ?>
                                     <span class="fs-3 fw-bold text-dark"><?php echo $costo_formateado; ?></span>
                                     <span class="text-muted small">ARS</span>
+                                <!-- Sino muestra el mensaje de que es gratuito -->
                                 <?php else: ?>
                                     <span class="fs-4 fw-bold text-success">Gratuito</span>
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
 
+                        <!-- Renderizado de la fecha de inicio, fecha final, junto con el cupo y la cantidad de inscriptos -->
                         <ul class="list-unstyled text-start text-secondary mb-4">
                             <li class="mb-2"><i class="bi bi-calendar-event me-2"></i><strong>Inicio:</strong> <?php echo date("d/m/Y", strtotime($curso['fecha_inicio'])); ?></li>
                             <li class="mb-2"><i class="bi bi-calendar-x me-2"></i><strong>Fin:</strong> <?php echo date("d/m/Y", strtotime($curso['fecha_fin'])); ?></li>
                             <li><i class="bi bi-people me-2"></i><strong>Cupo:</strong> <?php echo $total_alumnos; ?> / <?php echo $curso['cupo'] ? $curso['cupo'] : 'Sin límite'; ?> alumnos</li>
                         </ul>
                         
+                        <!-- Si no hay una sesion iniciada, muestra un boton que manda al formulario de login -->
                         <?php if(!$id_usuario_actual): ?>
                             <a href="login.php" class="btn btn-purple w-100 fw-medium text-white">Inicia sesión para inscribirte</a>
+                        <!-- Si es el creador, el boton pasa a ser uno para editar la información del curso -->
                         <?php elseif($es_creador): ?>
                             <a href="editarCurso.php?id=<?php echo $id_curso; ?>" class="btn btn-outline-primary w-100 fw-medium">Editar Datos del Curso</a>
+                        <!-- Si el usuario ya esta inscripto al curso, muestra un boton para abandonar el curso si así lo quisiera -->
                         <?php elseif($estado_inscripcion === 'aceptada'): ?>
                             <form action="procesarInscripcion.php" method="POST">
                                 <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
                                 <input type="hidden" name="accion" value="abandonar">
                                 <button type="submit" class="btn btn-outline-danger w-100 fw-medium">Abandonar Curso</button>
                             </form>
+                        <!-- Si la inscripcion esta pendiente, se le muestra un mensaje, y un boton para cancelar la solicitud si así lo quisiera -->
                         <?php elseif($estado_inscripcion === 'pendiente'): ?>
                             <div class="alert alert-warning border-0 p-2 text-center small mb-3">
                                 <i class="bi bi-exclamation-triangle-fill me-1"></i>El docente debe validar tu vacante para cursos de pago.
@@ -891,11 +913,14 @@
                                 <input type="hidden" name="accion" value="abandonar">
                                 <button type="submit" class="btn btn-outline-secondary w-100 fw-medium">Cancelar Solicitud</button>
                             </form>
+                        <!-- Si el curso está inactivo, muestra un mensaje en el que dice que iniciará en tal fecha (en caso de estar programado) -->
                         <?php elseif($curso['activo'] == 0): ?>
                             <div class="alert alert-secondary border-0 p-2 text-center small mb-0">
                                 <i class="bi bi-clock-history me-1"></i>
                                 <?php echo $es_programado ? 'Este curso aún no inició. Las inscripciones abrirán el ' . date("d/m/Y", strtotime($curso['fecha_inicio'])) . '.' : 'Este curso no se encuentra disponible para inscripciones.'; ?>
                             </div>
+                        <!-- Si no se cumple ninguna de esas restricciones, el usuario puede inscribirse-->
+                        <!-- Aunque acá también se controla si no se supera el cupo, y si el curso es pago o gratuito para ver como se procesa-->
                         <?php else: ?>
                             <form action="procesarInscripcion.php" method="POST">
                                 <input type="hidden" name="id_curso" value="<?php echo $id_curso; ?>">
@@ -908,17 +933,20 @@
                         <?php endif; ?>
                     </div>
                 </div>
-
+                
+                <!-- Sección del material del curso -->
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
                         <h6 class="fw-bold mb-0">Material Didáctico</h6>
                         <span class="badge bg-light text-secondary border"><?php echo $total_materiales; ?> Archivos</span>
                     </div>
-                    
+                    <!-- Renderizado de los materiales almacenados en la base de datos y relacionados al curso -->
+                    <!-- Las consultas estan almacenadas en variables al inicio del script -->
                     <div class="card-body p-0">
                         <?php if($total_materiales > 0): ?>
                             <div class="list-group list-group-flush">
                                 <?php while($material = mysqli_fetch_assoc($resultado_materiales)): ?>
+                                    <!-- Los diferentes controles sobre formato de archivo -->
                                     <?php 
                                         $ext = strtolower(pathinfo($material['nombre_archivo'], PATHINFO_EXTENSION));
                                         $icono = 'bi-file-earmark-text-fill text-primary';
@@ -930,10 +958,12 @@
                                         <div class="d-flex align-items-center gap-3 text-truncate">
                                             <i class="bi <?php echo $icono; ?> fs-4"></i>
                                             <div class="text-truncate">
+                                                <!-- Controla si es el creador o si esta inscripto, si alguna de las dos se cumple, el nombre del archivo es un link-->
                                                 <?php if($esta_inscripto || $es_creador): ?>
                                                     <a href="../<?php echo $material['ruta_archivo']; ?>" download class="mb-0 fw-medium text-dark text-decoration-none d-block text-truncate" style="font-size: 0.9rem;">
                                                         <?php echo htmlspecialchars($material['nombre_archivo']); ?>
                                                     </a>
+                                                <!-- Sino se muestra el archivo con el nombre y nada más -->
                                                 <?php else: ?>
                                                     <p class="mb-0 fw-medium text-secondary text-truncate" style="font-size: 0.9rem;" title="Inscríbete para descargar">
                                                         <?php echo htmlspecialchars($material['nombre_archivo']); ?>
@@ -944,6 +974,7 @@
                                         </div>
 
                                         <div class="d-flex align-items-center gap-2">
+                                            <!-- Controla si es el creador o si esta inscripto, si alguna de las dos se cumple, se muestra el boton para descargarlo-->
                                             <?php if($esta_inscripto || $es_creador): ?>
                                                 <a href="../<?php echo $material['ruta_archivo']; ?>" download class="btn btn-sm btn-light text-muted border-0">
                                                     <i class="bi bi-download"></i>
@@ -951,13 +982,10 @@
                                             <?php endif; ?>
 
                                             <?php if($es_creador): ?>
-                                                <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" onsubmit="return confirm('¿Eliminar este material?');">
-                                                    <input type="hidden" name="accion_material" value="eliminar">
-                                                    <input type="hidden" name="id_material" value="<?php echo $material['id_material']; ?>">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0">
-                                                        <i class="bi bi-trash-fill"></i>
-                                                    </button>
-                                                </form>
+                                                <!-- Botón que activa el modal para eliminar material -->
+                                                <button type="button" class="btn btn-sm btn-outline-danger border-0 btn-eliminar-material" data-bs-toggle="modal" data-bs-target="#modalConfirmarEliminarMaterial" data-id="<?php echo $material['id_material']; ?>" title="Eliminar material">
+                                                    <i class="bi bi-trash-fill"></i>
+                                                </button>
                                             <?php endif; ?>
                                         </div>
                                     </div>
@@ -972,6 +1000,7 @@
                     
                     <?php if($es_creador): ?>
                     <div class="card-footer bg-white border-top p-3 text-center">
+                        <!-- Controla si se supero el límite del plan gratis para subir materiales -->
                         <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-medium" data-bs-toggle="modal" data-bs-target="#modalSubirMaterial" style="color: var(--PRIMARY); border-color: var(--PRIMARY);" <?php echo $limite_materiales_gratis_alcanzado ? 'disabled' : ''; ?>>
                             <i class="bi bi-cloud-arrow-up me-2"></i>Subir Material
                         </button>
@@ -983,6 +1012,7 @@
                             <div class="form-text mt-2" style="font-size: 0.75rem;">
                                 Plan Gratuito: <?php echo $total_materiales; ?>/5 archivos • <?php echo formatearBytes($peso_total_materiales); ?> / 10 MB total (máx. 5 MB/archivo).
                             </div>
+                            <!-- Si excede el límite de gratis al perder el plan pro, se muestra un mensaje informativo -->
                             <?php if($excede_limite_gratis_previo): ?>
                                 <div class="form-text text-warning fw-medium mt-1" style="font-size: 0.73rem;">
                                     Conservas los archivos subidos durante tu Plan Pro, pero debes liberar espacio o renovar Pro para subir nuevos.
@@ -1031,6 +1061,7 @@
     </div>
     <?php endif; ?>
 
+    <!-- MODAL PARA CREAR PREGUNTA -->
     <?php if($puede_crear_pregunta): ?>
     <div class="modal fade" id="modalNuevaPregunta" tabindex="-1" aria-labelledby="modalNuevaPreguntaLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1064,6 +1095,7 @@
     </div>
     <?php endif; ?>
 
+    <!-- MODAL PARA SUBIR MATERIAL -->
     <?php if($es_creador): ?>
     <div class="modal fade" id="modalSubirMaterial" tabindex="-1" aria-labelledby="modalSubirMaterialLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1097,5 +1129,172 @@
         </div>
     </div>
     <?php endif; ?>
+
+    <!-- MODAL DE CONFIRMACIÓN: ELIMINAR COMUNICADO -->
+    <div class="modal fade" id="modalConfirmarEliminarComunicado" tabindex="-1" aria-labelledby="modalConfirmarEliminarComunicadoLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-danger" id="modalConfirmarEliminarComunicadoLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Eliminar Comunicado
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary mb-0">¿Estás seguro de que deseas eliminar este comunicado? Esta acción no se puede deshacer.</p>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                    <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" id="formEliminarComunicado">
+                        <input type="hidden" name="accion_comunicado" value="eliminar">
+                        <input type="hidden" name="id_comunicado" id="inputIdComunicado" value="">
+                        <button type="submit" class="btn btn-danger fw-bold px-4 text-white">Sí, eliminar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN: ELIMINAR PREGUNTA -->
+    <div class="modal fade" id="modalConfirmarEliminarPregunta" tabindex="-1" aria-labelledby="modalConfirmarEliminarPreguntaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-danger" id="modalConfirmarEliminarPreguntaLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Eliminar Pregunta
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary mb-0">¿Estás seguro de eliminar esta pregunta y todas sus respuestas asociadas?</p>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                    <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" id="formEliminarPregunta">
+                        <input type="hidden" name="accion_foro" value="eliminar_pregunta">
+                        <input type="hidden" name="id_pregunta" id="inputIdPregunta" value="">
+                        <button type="submit" class="btn btn-danger fw-bold px-4 text-white">Sí, eliminar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN: DESTACAR/ACEPTAR RESPUESTA -->
+    <div class="modal fade" id="modalConfirmarAceptarRespuesta" tabindex="-1" aria-labelledby="modalConfirmarAceptarRespuestaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-success" id="modalConfirmarAceptarRespuestaLabel">
+                        <i class="bi bi-check-circle-fill me-2"></i>Destacar Respuesta
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary mb-0">¿Marcar esta respuesta como aceptada y cerrar el tema? Ya no se admitirán más respuestas.</p>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                    <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" id="formAceptarRespuesta">
+                        <input type="hidden" name="accion_foro" value="marcar_aceptada">
+                        <input type="hidden" name="id_respuesta" id="inputIdRespuestaAceptar" value="">
+                        <input type="hidden" name="id_pregunta" id="inputIdPreguntaAceptar" value="">
+                        <button type="submit" class="btn btn-success fw-bold px-4 text-white">Sí, aceptar y cerrar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN: ELIMINAR RESPUESTA -->
+    <div class="modal fade" id="modalConfirmarEliminarRespuesta" tabindex="-1" aria-labelledby="modalConfirmarEliminarRespuestaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-danger" id="modalConfirmarEliminarRespuestaLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Eliminar Respuesta
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary mb-0">¿Estás seguro de eliminar esta respuesta?</p>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                    <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" id="formEliminarRespuesta">
+                        <input type="hidden" name="accion_foro" value="eliminar_respuesta">
+                        <input type="hidden" name="id_respuesta" id="inputIdRespuestaEliminar" value="">
+                        <button type="submit" class="btn btn-danger fw-bold px-4 text-white">Sí, eliminar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CONFIRMACIÓN: ELIMINAR MATERIAL -->
+    <div class="modal fade" id="modalConfirmarEliminarMaterial" tabindex="-1" aria-labelledby="modalConfirmarEliminarMaterialLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow rounded-4">
+                <div class="modal-header border-bottom p-4">
+                    <h5 class="modal-title fw-bold text-danger" id="modalConfirmarEliminarMaterialLabel">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Eliminar Material
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary mb-0">¿Estás seguro de que deseas eliminar este material didáctico?</p>
+                </div>
+                <div class="modal-footer border-top p-3">
+                    <button type="button" class="btn btn-light border fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                    <form action="curso.php?id=<?php echo $id_curso; ?>" method="POST" id="formEliminarMaterial">
+                        <input type="hidden" name="accion_material" value="eliminar">
+                        <input type="hidden" name="id_material" id="inputIdMaterial" value="">
+                        <button type="submit" class="btn btn-danger fw-bold px-4 text-white">Sí, eliminar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT PARA ASIGNAR IDS A LOS MODALES DE CONFIRMACIÓN -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Eliminar comunicado
+            document.querySelectorAll('.btn-eliminar-comunicado').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.getElementById('inputIdComunicado').value = this.getAttribute('data-id');
+                });
+            });
+
+            // Eliminar pregunta
+            document.querySelectorAll('.btn-eliminar-pregunta').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.getElementById('inputIdPregunta').value = this.getAttribute('data-id');
+                });
+            });
+
+            // Aceptar respuesta
+            document.querySelectorAll('.btn-aceptar-respuesta').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.getElementById('inputIdRespuestaAceptar').value = this.getAttribute('data-idresp');
+                    document.getElementById('inputIdPreguntaAceptar').value = this.getAttribute('data-idpreg');
+                });
+            });
+
+            // Eliminar respuesta
+            document.querySelectorAll('.btn-eliminar-respuesta').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.getElementById('inputIdRespuestaEliminar').value = this.getAttribute('data-idresp');
+                });
+            });
+
+            // Eliminar material
+            document.querySelectorAll('.btn-eliminar-material').forEach(button => {
+                button.addEventListener('click', function() {
+                    document.getElementById('inputIdMaterial').value = this.getAttribute('data-id');
+                });
+            });
+        });
+    </script>
 
 <?php require_once 'footer.php'; ?>

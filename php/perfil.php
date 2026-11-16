@@ -13,12 +13,12 @@
 
     $idUsuario = $_SESSION['id_usuario'];
 
-    // 1. Consultamos todos los datos del usuario activo
+    // Consultamos todos los datos del usuario activo
     $sql_usuario = "SELECT * FROM usuarios WHERE id_usuario = $idUsuario";
     $resultado = mysqli_query($conexion, $sql_usuario);
     $usuario = mysqli_fetch_assoc($resultado);
 
-    // 2. Consultamos las etiquetas de interés del usuario actual (para verificar cuáles marcar por defecto)
+    // Consultamos las etiquetas de interés del usuario actual (para verificar cuáles marcar por defecto)
     $sql_intereses_usuario = "
         SELECT e.id_etiqueta, e.nombre 
         FROM usuario_intereses ui 
@@ -32,7 +32,7 @@
         $intereses_usuario_actual[] = $int_row['nombre'];
     }
 
-    // 3. Consultamos todas las etiquetas del sistema para pasarlas al modal
+    // Consultamos todas las etiquetas del sistema para pasarlas al modal
     $sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
     $resultado_todas_etiquetas = mysqli_query($conexion, $sql_todas_etiquetas);
     $todas_etiquetas_arr = [];
@@ -42,7 +42,7 @@
         }
     }
 
-    // 4. Determinar la ruta del avatar a mostrar
+    // Determinar la ruta del avatar a mostrar
     $ruta_avatar = "https://ui-avatars.com/api/?name=" . urlencode($usuario['nombre'] . '+' . $usuario['apellido']) . "&background=ffffff&color=6c5ce7&size=150";
     if(!empty($usuario['imagen_perfil']) && $usuario['imagen_perfil'] !== 'default_avatar.png'){
         $ruta_avatar = '../uploads/perfiles/' . htmlspecialchars($usuario['imagen_perfil']);
@@ -126,7 +126,6 @@
                 </div>
             <?php endif; ?>
 
-            <!-- Agregamos id="formPerfil" y enctype="multipart/form-data" -->
             <form action="editarPerfil.php" method="POST" enctype="multipart/form-data" id="formPerfil">
                 
                 <!-- Cabecera de la sección -->

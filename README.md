@@ -94,15 +94,15 @@ Acá se encuentran resumidos los principales problemas encontrados durante el de
 
 Dónde ocurría: en nuevoCurso.php, editarCurso.php y perfil.php.
 
-**Problema:** al seleccionar etiquetas y enviar el formulario, estas no se almacenaban en la base de datos. La selección se realiza mediante ventanas modales con casillas de verificación (checkboxes), pero esos modales estaban ubicados fuera de la etiqueta de formulario principal. Como los campos que quedan fuera de un formulario no se incluyen en el envío, las etiquetas elegidas nunca viajaban por POST y el servidor no recibía los datos que debía procesar.
+**Problema:** al seleccionar etiquetas y enviar el formulario, estas no se almacenaban en la base de datos. La selección se realiza mediante modales con checkboxes, pero esos modales estaban ubicados fuera de la etiqueta de formulario principal. Como los campos que quedan fuera de un formulario no se incluyen en el envío, las etiquetas elegidas nunca viajaban por POST y el servidor no recibía los datos que debía procesar.
 
 **Solución:** se movieron los modales de etiquetas para que queden dentro del formulario principal. De esta forma, las casillas seleccionadas se envían junto con el resto de los campos, y el código PHP puede guardarlas correctamente en las tablas curso_etiquetas y usuario_intereses.
 
 **2. Scripts escritos directamente en las páginas en lugar de un archivo JavaScript común**
 
-**Problema:** parte del código JavaScript se había escrito directamente dentro de las páginas PHP, en lugar de centralizarlo en el archivo js/comp.js. Esto dispersaba la lógica del front-end en varios archivos y dificultaba su mantenimiento.
+**Problema:** Se intentó implementar los script de codigo JavaScript en el archivo comun comp.js, pero daba fallos en ocasiones repetidas. 
 
-**Solución:** se trasladaron los scripts a js/comp.js, de modo que las páginas solo lo incluyan. Así el código JavaScript queda concentrado en un único lugar, es más fácil de leer y de modificar, y se evita repetir lógica entre páginas.
+**Solución:** se trasladaron los scripts a el mismo html para concentrarse en desarrollar el lenguaje del lado del servidor, es decir, priorizar la funcionalidad de la página.
 
 **3. Activación automática de cursos con fecha de inicio futura**
 
