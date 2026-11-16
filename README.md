@@ -34,7 +34,7 @@ Trabajo integrador de **Ingeniería de Software & Programación III** — Tecnic
 1. **Clonar el repositorio** dentro de `htdocs`:
    ```bash
    cd C:\xampp\htdocs
-   git clone <URL_DEL_REPOSITORIO> CursoLandia
+   git clone https://github.com/AgusGarces97/CursoLandia.git CursoLandia
    ```
 
 2. **Iniciar Apache y MySQL** desde el panel de XAMPP.
@@ -112,6 +112,37 @@ Dónde ocurría: en nuevoCurso.php, editarCurso.php y perfil.php.
 
 Esa misma lógica respeta los límites de cada plan: si el creador es de plan gratuito y ya tiene 3 cursos activos, el curso programado no se activa y pasa a borrador. También se reutiliza cuando vence un plan Pro, para pasar a borrador los cursos que exceden el límite del plan gratuito.
 
+**4. Error 500 al acceder a la vista detallada del curso en el entorno de producción (InfinityFree)**
+
+Dónde ocurría: En curso.php al visualizar el proyecto desplegado online.
+
+**Problema:** Al probar el sistema en el servidor web gratuito (InfinityFree), la página del curso daba un error HTTP 500 (Internal Server Error), a pesar de que la aplicación funcionaba perfectamente en el entorno local con XAMPP. El fallo se originaba porque la tabla comunicados_curso no existía en la base de datos remota.
+
+**Solución:** Se ejecutó el script de creación de la tabla faltante (comunicados_curso) con su respectiva clave foránea e integridad referencial directamente en el phpMyAdmin del servidor de producción.
+
+**5. Problemas de almacenamiento en caché del navegador con la hoja de estilos CSS en producción**
+
+Dónde ocurría: En las vistas públicas y de gestión al visualizar el sitio web desplegado en InfinityFree.
+
+**Problema:** Tras subir las actualizaciones de diseño y código al servidor de producción, las páginas mostraban alteraciones visuales y no aplicaban correctamente las últimas modificaciones de los colores del CSS. El sistema local funcionaba de forma correcta, pero el navegador web en línea persistía en cargar una versión desactualizada de los archivos de estilos estáticos debido al almacenamiento en caché local.
+
+**Solución:** Se solucionó aplicando una recarga forzada del navegador utilizando la combinación de teclas Ctrl + F5 (o vaciando la caché de forma manual), lo que obligó al cliente a descartar los archivos almacenados temporalmente y descargar desde el servidor las versiones más recientes de las hojas de estilo.
+
+**6. Incompatibilidad de parámetros y credenciales de conexión al desplegar en InfinityFree.**
+
+Dónde ocurría: En el archivo de configuración de acceso a la base de datos al migrar el sistema desde el entorno local al servidor.
+
+**Problema:** Al subir los archivos del proyecto a InfinityFree, la aplicación perdía la conexión con la base de datos y fallaba al intentar cargar los datos. Esto sucedía porque los parámetros utilizados de forma local (servidor localhost, usuario root y ausencia de contraseña) diferían por completo de las credenciales y el nombre de host específicos asignados por el panel de control del hosting gratuito (servidor SQL remoto, usuario personalizado, contraseña de base de datos y nombres de bases de datos con prefijos obligatorios).
+
+**Solución:*** Se actualizaron los datos de acceso en el archivo de conexión del servidor, reemplazando los parámetros locales por las credenciales provistas por InfinityFree (como el host del tipo sqlXXX.infinityfree.com, el usuario y la contraseña asignados), logrando así restablecer de forma exitosa la comunicación entre la aplicación web y la base de datos remota.
+
+**7. Incompatibilidad de autenticación al implementar el hash seguro de contraseñas**
+
+Dónde ocurría: En el proceso de inicio de sesión (login.php) y en la validación de credenciales con la base de datos.
+
+**Problema:** Al actualizar el sistema para almacenar las claves de usuario de forma segura mediante funciones de hash (password_hash), el inicio de sesión comenzó a fallar sistemáticamente. Las contraseñas ingresadas por los usuarios en texto plano al intentar loguearse no coincidían con el hash almacenado en la base de datos, lo que impedía el acceso a la plataforma.
+
+**Solución:** Se corrigió la lógica de validación en el script de acceso implementando la función de verificación nativa password_verify($pass_ingresada, $hash_almacenado). Asimismo, se aseguró la compatibilidad temporal y de migración permitiendo la verificación con credenciales heredadas, logrando que el sistema contraste de forma correcta la contraseña en texto plano ingresada por el usuario frente al hash seguro guardado en la base de datos.
 
 ```
 Notas
