@@ -1,4 +1,4 @@
-# Cursolandia.com
+# CursoLandia
 
 Aplicación web donde los usuarios pueden **crear y tomar cursos**, gratuitos o pagos, públicos o privados. Cada curso tiene su propio foro de preguntas y respuestas, material adjunto y notificaciones.
 
@@ -86,7 +86,7 @@ Estas credenciales son solo para pruebas y viven únicamente en el backup SQL (h
 
 **Datos de ejemplo incluidos:** 3 cursos (uno gratuito y dos pagos), 10 etiquetas, intereses del usuario gratuito, 3 inscripciones (las de cursos pagos en estado pendiente). Las tablas del foro, notificaciones, materiales y solicitudes Pro parten vacías y se completan al usar el sistema.
 
-# Informe de problemas y soluciones — Cursolandia.com
+# Informe de problemas y soluciones — CursoLandia
 
 Acá se encuentran resumidos los principales problemas encontrados durante el desarrollo del proyecto y la forma en que se resolvieron:
 
