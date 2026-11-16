@@ -134,7 +134,7 @@ Dónde ocurría: En el archivo de configuración de acceso a la base de datos al
 
 **Problema:** Al subir los archivos del proyecto a InfinityFree, la aplicación perdía la conexión con la base de datos y fallaba al intentar cargar los datos. Esto sucedía porque los parámetros utilizados de forma local (servidor localhost, usuario root y ausencia de contraseña) diferían por completo de las credenciales y el nombre de host específicos asignados por el panel de control del hosting gratuito (servidor SQL remoto, usuario personalizado, contraseña de base de datos y nombres de bases de datos con prefijos obligatorios).
 
-**Solución:*** Se actualizaron los datos de acceso en el archivo de conexión del servidor, reemplazando los parámetros locales por las credenciales provistas por InfinityFree (como el host del tipo sqlXXX.infinityfree.com, el usuario y la contraseña asignados), logrando así restablecer de forma exitosa la comunicación entre la aplicación web y la base de datos remota.
+**Solución:** Se actualizaron los datos de acceso en el archivo de conexión del servidor, reemplazando los parámetros locales por las credenciales provistas por InfinityFree (como el host del tipo sqlXXX.infinityfree.com, el usuario y la contraseña asignados), logrando así restablecer de forma exitosa la comunicación entre la aplicación web y la base de datos remota.
 
 **7. Incompatibilidad de autenticación al implementar el hash seguro de contraseñas**
 
