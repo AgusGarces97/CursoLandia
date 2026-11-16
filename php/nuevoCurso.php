@@ -257,12 +257,13 @@ require_once 'header.php';
                                         <label class="form-label fw-medium text-dark"><i class="bi bi-tags-fill text-primary me-1"></i> Etiquetas (Opcional)</label>
                                         <div class="mb-2">
                                             <button type="button" class="btn btn-outline-primary btn-sm w-100 py-2 fw-medium d-flex align-items-center justify-content-center gap-2" data-bs-toggle="modal" data-bs-target="#modalEtiquetas">
-                                                <i class="bi bi-tags"></i> Seleccionar Etiquetas de la Base de Datos
+                                                <i class="bi bi-tags"></i> Seleccionar Etiquetas
                                             </button>
                                         </div>
 
+                                        <!-- Contenedor visual de badges y donde se inyectan los inputs hidden reales -->
                                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap gap-2" style="min-height: 80px;">
-                                            <!-- Se rellena dinámicamente con JS según las casillas marcadas -->
+                                            <!-- Se rellena dinámicamente con JS -->
                                         </div>
                                     </div>
                                 </div>
@@ -361,7 +362,7 @@ require_once 'header.php';
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que apliquen al curso:</p>
+                    <p class="text-muted small mb-3">Marca las etiquetas que apliquen al curso:</p>
                     <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
                         <?php if (count($todas_etiquetas_arr) > 0): ?>
                             <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
@@ -369,7 +370,7 @@ require_once 'header.php';
                             ?>
                                 <div class="col-6">
                                     <div class="form-check">
-                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" name="etiquetas[]" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
+                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
                                         <label class="form-check-label text-dark" for="tag_<?php echo md5($nombre_tag); ?>">
                                             #<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>
                                         </label>
@@ -378,7 +379,7 @@ require_once 'header.php';
                             <?php endforeach; ?>
                         <?php else: ?>
                             <div class="col-12 text-center text-muted py-3">
-                                No hay etiquetas registradas en la base de datos.
+                                No hay etiquetas registradas
                             </div>
                         <?php endif; ?>
                     </div>
@@ -390,12 +391,13 @@ require_once 'header.php';
         </div>
     </div>
 
-    <!-- JS de interacción de Precio, Modal y Sincronización de Etiquetas -->
+    <!-- JS de interacción de Precio, Modal y Sincronización Robusta de Etiquetas -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const selectTipoCosto = document.getElementById('tipo_costo');
             const bloquePrecio = document.getElementById('bloquePrecio');
             const inputCostoMonto = document.getElementById('costo_monto');
+            const formNuevoCurso = document.getElementById('formNuevoCurso');
 
             function actualizarVisibilidadPrecio() {
                 if (selectTipoCosto.value === '1') {
@@ -412,12 +414,15 @@ require_once 'header.php';
                 actualizarVisibilidadPrecio();
             }
 
-            // Sincronización de Etiquetas (Checkboxes del Modal <-> Contenedor de Badges)
+            // Sincronización robusta de Etiquetas con inputs hidden inyectados en el formulario principal
             const checkboxesEtiquetas = document.querySelectorAll('.checkbox-etiqueta');
             const contenedorEtiquetas = document.getElementById('contenedorEtiquetas');
 
             function actualizarBadges() {
+                // Removemos inputs hidden anteriores de etiquetas para recrearlos limpios
+                formNuevoCurso.querySelectorAll('input.input-etiqueta-hidden').forEach(el => el.remove());
                 contenedorEtiquetas.innerHTML = '';
+                
                 const seleccionadas = Array.from(checkboxesEtiquetas).filter(cb => cb.checked);
 
                 if (seleccionadas.length === 0) {
@@ -427,6 +432,16 @@ require_once 'header.php';
 
                 seleccionadas.forEach(cb => {
                     const tagName = cb.value;
+
+                    // Creamos el input hidden que viaja por POST en el form principal
+                    const inputHidden = document.createElement('input');
+                    inputHidden.type = 'hidden';
+                    inputHidden.name = 'etiquetas[]';
+                    inputHidden.value = tagName;
+                    inputHidden.className = 'input-etiqueta-hidden';
+                    formNuevoCurso.appendChild(inputHidden);
+
+                    // Creamos el badge visual
                     const badge = document.createElement('span');
                     badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
                     badge.innerHTML = `
@@ -452,7 +467,7 @@ require_once 'header.php';
                 }
             });
 
-            // Inicializar al cargar la página (por si hay recarga con valores previos en POST)
+            // Inicializar al cargar la página
             actualizarBadges();
         });
     </script>

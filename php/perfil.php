@@ -13,12 +13,12 @@
 
     $idUsuario = $_SESSION['id_usuario'];
 
-    // 1. Consultamos todos los datos del usuario activo
+    // Consultamos todos los datos del usuario activo
     $sql_usuario = "SELECT * FROM usuarios WHERE id_usuario = $idUsuario";
     $resultado = mysqli_query($conexion, $sql_usuario);
     $usuario = mysqli_fetch_assoc($resultado);
 
-    // 2. Consultamos las etiquetas de interés del usuario actual (para verificar cuáles marcar por defecto)
+    // Consultamos las etiquetas de interés del usuario actual (para verificar cuáles marcar por defecto)
     $sql_intereses_usuario = "
         SELECT e.id_etiqueta, e.nombre 
         FROM usuario_intereses ui 
@@ -32,7 +32,7 @@
         $intereses_usuario_actual[] = $int_row['nombre'];
     }
 
-    // 3. Consultamos todas las etiquetas del sistema para pasarlas al modal
+    // Consultamos todas las etiquetas del sistema para pasarlas al modal
     $sql_todas_etiquetas = "SELECT * FROM etiquetas ORDER BY nombre ASC";
     $resultado_todas_etiquetas = mysqli_query($conexion, $sql_todas_etiquetas);
     $todas_etiquetas_arr = [];
@@ -42,7 +42,7 @@
         }
     }
 
-    // 4. Determinar la ruta del avatar a mostrar
+    // Determinar la ruta del avatar a mostrar
     $ruta_avatar = "https://ui-avatars.com/api/?name=" . urlencode($usuario['nombre'] . '+' . $usuario['apellido']) . "&background=ffffff&color=6c5ce7&size=150";
     if(!empty($usuario['imagen_perfil']) && $usuario['imagen_perfil'] !== 'default_avatar.png'){
         $ruta_avatar = '../uploads/perfiles/' . htmlspecialchars($usuario['imagen_perfil']);
@@ -126,8 +126,7 @@
                 </div>
             <?php endif; ?>
 
-            <!-- Agregamos enctype="multipart/form-data" para permitir subida de archivos -->
-            <form action="editarPerfil.php" method="POST" enctype="multipart/form-data">
+            <form action="editarPerfil.php" method="POST" enctype="multipart/form-data" id="formPerfil">
                 
                 <!-- Cabecera de la sección -->
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3 border-bottom pb-3">
@@ -192,10 +191,10 @@
                         </div>
                         
                         <div id="contenedorEtiquetas" class="border rounded-3 p-3 bg-light d-flex flex-wrap align-content-start gap-2" style="min-height: 140px;">
-                            <!-- Se rellena dinámicamente con JS según las casillas marcadas -->
+                            <!-- Se rellena dinámicamente con JS y aloja los inputs hidden -->
                         </div>
                         <div class="form-text mt-2" style="font-size: 0.75rem;">
-                            Haz clic en el botón superior para seleccionar tus temas de interés desde la base de datos.
+                            Haz clic en el botón superior para seleccionar tus temas de interés
                         </div>
                     </div>
 
@@ -216,7 +215,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-muted small mb-3">Marca las etiquetas de la base de datos que reflejen tus intereses:</p>
+                    <p class="text-muted small mb-3">Marca las etiquetas que reflejen tus intereses:</p>
                     <div class="row g-2" style="max-height: 280px; overflow-y: auto;">
                         <?php if (count($todas_etiquetas_arr) > 0): ?>
                             <?php foreach ($todas_etiquetas_arr as $nombre_tag): 
@@ -224,7 +223,7 @@
                             ?>
                                 <div class="col-6">
                                     <div class="form-check">
-                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" name="etiquetas[]" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_user_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
+                                        <input class="form-check-input checkbox-etiqueta" type="checkbox" value="<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>" id="tag_user_<?php echo md5($nombre_tag); ?>" <?php echo $is_checked; ?>>
                                         <label class="form-check-label text-dark" for="tag_user_<?php echo md5($nombre_tag); ?>">
                                             #<?php echo htmlspecialchars($nombre_tag, ENT_QUOTES, 'UTF-8'); ?>
                                         </label>
@@ -233,7 +232,7 @@
                             <?php endforeach; ?>
                         <?php else: ?>
                             <div class="col-12 text-center text-muted py-3">
-                                No hay etiquetas registradas en la base de datos.
+                                No hay etiquetas registradas
                             </div>
                         <?php endif; ?>
                     </div>
@@ -283,14 +282,18 @@
         </div>
     </div>
 
-    <!-- SCRIPT DE SINCRONIZACIÓN DE INTERESES CON EL MODAL -->
+    <!-- SCRIPT DE SINCRONIZACIÓN ROBUSTA DE INTERESES CON EL FORMULARIO -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const checkboxesEtiquetas = document.querySelectorAll('.checkbox-etiqueta');
             const contenedorEtiquetas = document.getElementById('contenedorEtiquetas');
+            const formPerfil = document.getElementById('formPerfil');
 
             function actualizarBadges() {
+                // Removemos inputs hidden anteriores para recrearlos limpios
+                formPerfil.querySelectorAll('input.input-etiqueta-hidden').forEach(el => el.remove());
                 contenedorEtiquetas.innerHTML = '';
+                
                 const seleccionadas = Array.from(checkboxesEtiquetas).filter(cb => cb.checked);
 
                 if (seleccionadas.length === 0) {
@@ -300,6 +303,16 @@
 
                 seleccionadas.forEach(cb => {
                     const tagName = cb.value;
+
+                    // Creamos el input hidden que viaja por POST en el form principal
+                    const inputHidden = document.createElement('input');
+                    inputHidden.type = 'hidden';
+                    inputHidden.name = 'etiquetas[]';
+                    inputHidden.value = tagName;
+                    inputHidden.className = 'input-etiqueta-hidden';
+                    formPerfil.appendChild(inputHidden);
+
+                    // Creamos el badge visual
                     const badge = document.createElement('span');
                     badge.className = 'badge bg-white text-secondary border p-2 d-flex align-items-center gap-1 item-etiqueta';
                     badge.innerHTML = `

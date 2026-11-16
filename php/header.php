@@ -9,7 +9,9 @@ if(session_status() == PHP_SESSION_NONE){
 $cant_notif_no_leidas = 0;
 $imagen_perfil_nav = 'default_avatar.png';
 
+// Controla Si hay una sesion iniciada
 if (isset($_SESSION['id_usuario'])) {
+
     // Protección para no incluir conexion.php si ya fue incluido en el archivo principal
     if (!isset($conexion)) {
         require_once __DIR__ . '/conexion.php';
@@ -29,14 +31,19 @@ if (isset($_SESSION['id_usuario'])) {
             $plan_actual = 'gratis';
         }
 
+        // Le asigna el plan modificado a la sesion
         $_SESSION['plan'] = $plan_actual;
+
+        // Asignarle el rol que figure en la bd a la session actual
         $_SESSION['rol'] = $datos_user_nav['rol'];
         
+        // Si hay una imagen de perfil en la bd, se la asigna a una variable que antes tenía una imagen por defecto
         if (!empty($datos_user_nav['imagen_perfil'])) {
             $imagen_perfil_nav = $datos_user_nav['imagen_perfil'];
         }
     }
 
+    // Contador de notificacion no leídas del usuario en sesion
     $sql_nav_notif = "SELECT COUNT(*) as total FROM notificaciones WHERE id_usuario = $id_user_nav AND leida = 0";
     $res_nav_notif = mysqli_query($conexion, $sql_nav_notif);
     if ($res_nav_notif) {
@@ -72,26 +79,31 @@ $es_index = ($pagina_actual === 'index.php');
                     <span>Cursolandia<span class="color-logo">.com</span></span>
                 </a>
 
+                <!-- Boton Hamburguesa -->
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
 
+                <!-- Contenido que colapsa -->
                 <div class="collapse navbar-collapse" id="navbarNav">
-                    <!-- Enlaces principales centrados -->
                     <ul class="navbar-nav mx-auto align-items-lg-center text-center gap-3 my-2 my-lg-0">
                         <li class="nav-item">
+                            <!-- Si la pagina actual es nuevoCurso.php entonces agrega la clase 'active' y se resalta con color en el nav-->
                             <a class="nav-link custom-link text-nowrap <?php echo ($pagina_actual === 'nuevoCurso.php') ? 'active' : ''; ?>" href="<?php echo $ruta; ?>php/nuevoCurso.php">Nuevo Curso</a>
                         </li>
                         <li class="nav-item">
+                            <!-- Si la pagina actual es misCursos.php, editarCurso.php o curso.php entonces agrega la clase 'active' y se resalta con color en el nav-->
                             <a class="nav-link custom-link text-nowrap <?php echo (in_array($pagina_actual, ['misCursos.php', 'editarCurso.php', 'curso.php'])) ? 'active' : ''; ?>" href="<?php echo $ruta; ?>php/misCursos.php">Mis Cursos</a>
                         </li>
                         <li class="nav-item">
+                            <!-- Si la pagina actual es cursosRecomendados.php entonces agrega la clase 'active' y se resalta con color en el nav-->
                             <a class="nav-link custom-link text-nowrap <?php echo ($pagina_actual === 'cursosRecomendados.php') ? 'active' : ''; ?>" href="<?php echo $ruta; ?>php/cursosRecomendados.php">Cursos Recomendados</a>
                         </li>
                         
-                        <!-- ZONA RESTRINGIDA: Solo visible para Administradores -->
+                        <!-- Zona visible solo para administradores -->
                         <?php if(isset($_SESSION['rol']) && $_SESSION['rol'] === 'admin'): ?>
                         <li class="nav-item">
+                            <!-- Si la pagina actual es solicitudesPro.php entonces agrega la clase 'active' y se resalta con color en el nav-->
                             <a class="nav-link custom-link text-nowrap <?php echo ($pagina_actual === 'solicitudesPro.php') ? 'active' : ''; ?>" href="<?php echo $ruta; ?>php/solicitudesPro.php">Solicitudes Plan Pro</a>
                         </li>                 
                         <?php endif; ?>
@@ -104,6 +116,7 @@ $es_index = ($pagina_actual === 'index.php');
                             <!-- SI ESTÁ LOGUEADO: Campana con enlace directo y contador Badge -->
                             <a class="text-decoration-none position-relative" href="<?php echo $ruta; ?>php/notificaciones.php" title="Notificaciones">
                                 <i class="bi bi-bell-fill color-logo fs-4"></i>
+                                <!-- Se fija en la cantidad de notificaciones no leídas de una variable que esta más arriba en el script -->
                                 <?php if($cant_notif_no_leidas > 0): ?>
                                     <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
                                         <?php echo $cant_notif_no_leidas > 99 ? '99+' : $cant_notif_no_leidas; ?>
@@ -111,16 +124,19 @@ $es_index = ($pagina_actual === 'index.php');
                                 <?php endif; ?>
                             </a>
                             
-                            <!-- Dropdown de Perfil -->
+                            <!-- Foto de Perfil y el dropdown -->
                             <div class="dropdown text-center">
                                 <a href="#" class="text-decoration-none d-flex align-items-center justify-content-center gap-2 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <!-- Si hay una foto de perfil diferente a la default, entonces pone esa foto de perfil en su apartado del nav -->
                                     <?php if (!empty($imagen_perfil_nav) && $imagen_perfil_nav !== 'default_avatar.png' && file_exists(__DIR__ . '/../uploads/perfiles/' . $imagen_perfil_nav)): ?>
                                         <img src="<?php echo $ruta; ?>uploads/perfiles/<?php echo htmlspecialchars($imagen_perfil_nav); ?>" alt="Avatar" class="rounded-circle border" style="width: 35px; height: 35px; object-fit: cover;">
                                     <?php else: ?>
+                                        <!-- si no hay una foto de perfil cargada, se pone el logo de perfil de bootstrap -->
                                         <i class="bi bi-person-circle color-logo fs-3"></i>
                                     <?php endif; ?>
                                     <span class="text-dark fw-medium"><?php echo $_SESSION['nombre']; ?></span>
                                 </a>
+                                <!-- Información que se muestra en el Dropdown -->
                                 <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm mt-2">
                                     <li><a class="dropdown-item py-2" href="<?php echo $ruta; ?>php/perfil.php"><i class="bi bi-person me-2"></i>Mi Perfil</a></li>
                                     <?php if($_SESSION['plan'] == 'pro'): ?>
@@ -130,12 +146,13 @@ $es_index = ($pagina_actual === 'index.php');
                                         <li><span class="dropdown-item py-2 text-danger fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Admin</span></li>
                                     <?php endif; ?>
                                     <li><hr class="dropdown-divider"></li>
+                                    <!-- Boton para cerrar Sesion, que abre un modal para confirmar si quiere cerrar sesión o no -->
                                     <li><a class="dropdown-item py-2 text-danger fw-medium" href="#" data-bs-toggle="modal" data-bs-target="#modalCerrarSesion"><i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión</a></li>
                                 </ul>
                             </div>
 
                         <?php else: ?>
-                            <!-- SI NO ESTÁ LOGUEADO: Botones con ancho ajustado (sin w-100) -->
+                            <!-- SI NO ESTÁ LOGUEADO: Se muestran los botones de "Ingresar" y "Registrarse" -->
                             <a href="<?php echo $ruta; ?>php/login.php" class="btn btn-outline-primary fw-medium px-4" style="color: var(--PRIMARY); border-color: var(--PRIMARY);">Ingresar</a>
                             <a href="<?php echo $ruta; ?>php/register.php" class="btn btn-purple fw-medium px-4 text-white">Registrarse</a>
                         <?php endif; ?>

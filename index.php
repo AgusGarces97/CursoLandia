@@ -135,6 +135,8 @@
             </div>
         </section>
 
+        <!-- Condicionales del resultado de la busqueda -->
+        <!-- Si se uso algun filtro se muestra esto -->
         <?php if ($hay_filtro): ?>
             
             <!-- VISTA DE RESULTADOS DE BÚSQUEDA -->
@@ -210,7 +212,7 @@
                     </div>
                 <?php endif; ?>
             </section>
-
+        <!-- Si no se usó ningun filtro, se muestran los destacados y recomendados -->
         <?php else: ?>
 
             <!-- VISTA DEFAULT (DESTACADOS Y RECOMENDADOS) -->

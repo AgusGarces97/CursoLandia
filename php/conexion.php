@@ -1,13 +1,7 @@
 <?php
 
+// PARA SETEAR LA ZONA HORARIA, por temas de fechas de inicio de curso y demás
 date_default_timezone_set('America/Argentina/Buenos_Aires');
-/*
-$dbHost = 'localhost';
-$dbUsuario = 'usuario_admin';
-$dbPassword = 'admin';
-$db = 'cursolandia_db';
-
-$conexion = mysqli_connect($dbHost, $dbUsuario, $dbPassword, $db); */
 
 $config = require __DIR__ . '/config.php';
 
@@ -18,6 +12,7 @@ $conexion = mysqli_connect(
     $config['dbname'],
     $config['port']
 );
+
 
 // Verificar si hubo algún error
 if (!$conexion) {
@@ -33,6 +28,7 @@ mysqli_set_charset($conexion, "utf8mb4");
  */
 function verificarPlanUsuario($conexion, $id_usuario) {
     $id_usuario = (int)$id_usuario;
+    
     if ($id_usuario <= 0) {
         return 'gratis';
     }
@@ -48,12 +44,14 @@ function verificarPlanUsuario($conexion, $id_usuario) {
     $datos_u = mysqli_fetch_assoc($res_u);
     $plan_actual = $datos_u['plan'];
 
+
+    // Una vez obtenida la consulta de la bd, si fija si el plan obtenido es pro, si hay una fecha de vencimiento y si la fecha de vencimiento ya pasó
     if ($plan_actual === 'pro' && !empty($datos_u['vencimiento_pro']) && $datos_u['vencimiento_pro'] < $hoy_bd) {
-        // 1. Cambiamos el plan a gratuito
+        // Cambiamos el plan a gratuito
         mysqli_query($conexion, "UPDATE usuarios SET plan = 'gratis', vencimiento_pro = NULL WHERE id_usuario = $id_usuario");
         $plan_actual = 'gratis';
 
-        // 2. Buscamos todos sus cursos activos o programados (priorizamos los que terminan antes / más antiguos)
+        // Buscamos todos sus cursos activos o programados (priorizamos los que terminan antes / más antiguos)
         $sql_cursos_user = "
             SELECT id_curso, titulo 
             FROM cursos 
@@ -62,6 +60,7 @@ function verificarPlanUsuario($conexion, $id_usuario) {
         ";
         $res_cursos_user = mysqli_query($conexion, $sql_cursos_user);
 
+        // Se fija si el usuario supera la cantidad de cursos inscriptos o creados del plan gratis
         if ($res_cursos_user && mysqli_num_rows($res_cursos_user) > 3) {
             $contador = 0;
             $cursos_borrador = [];
@@ -75,6 +74,7 @@ function verificarPlanUsuario($conexion, $id_usuario) {
                 }
             }
 
+        // Toma los cursos guardados en el arreglo borrador y los guarda en una cadena para luego enviarlos en una notificación
             if (!empty($cursos_borrador)) {
                 $lista_titulos = implode(', ', $cursos_borrador);
                 $titulo_notif = mysqli_real_escape_string($conexion, "Tu Plan Pro ha vencido");
@@ -108,6 +108,7 @@ if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['id_usuario'])) {
 // ACTIVACIÓN AUTOMÁTICA DE CURSOS PROGRAMADOS AL LLEGAR SU FECHA DE INICIO
 // =========================================================
 $hoy_bd = date('Y-m-d');
+//SQL para los cursos programados y que hayamos llegado a su fecha de inicio
 $sql_prog = "
     SELECT id_curso, id_creador
     FROM cursos
